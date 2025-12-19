@@ -440,29 +440,35 @@ if (function_exists("cli_git") === !1) {
 
         if (
             ($isNodeMode && $target === "Node") ||
-            (!$isNodeMode && $target === "Project")
+            (!$isNodeMode && $target === "Project" && file_exists($gitIgnore))
         ) {
             return "Git already targeting {$target}\n";
         }
 
         $rootDir = ROOT_PATH . "Git" . DIRECTORY_SEPARATOR;
         $targetDir = $rootDir . $target . DIRECTORY_SEPARATOR;
-
         $sourceDir = $rootDir . $source . DIRECTORY_SEPARATOR;
-        if (count(scandir($sourceDir)) > 2) {
-            return "E: {$source} directory {$sourceDir} not empty";
-        }
-        $r = "Preparing to target Git...\n\n";
+
+        $flagMoveToSource = count(scandir($sourceDir)) > 2;
+
+        $r =
+            "Preparing to target Git...\n" .
+            ($flagMoveToSource
+                ? "Warning: {$sourceDir} contains files, skipping root->source moves.\n\n"
+                : "\n");
 
         foreach ([".git", "README.md", ".gitignore"] as $file) {
             $rootFile = ROOT_PATH . $file;
             $sourceFile = "{$sourceDir}{$file}";
             $targetFile = "{$targetDir}{$file}";
 
-            if (file_exists($rootFile) && !file_exists($sourceFile)) {
-                $r .= "mv root: {$rootFile} to {$sourceFile}\n";
-                rename($rootFile, $sourceFile);
+            if (!$flagMoveToSource) {
+                if (file_exists($rootFile) && !file_exists($sourceFile)) {
+                    $r .= "mv root: {$rootFile} to {$sourceFile}\n";
+                    rename($rootFile, $sourceFile);
+                }
             }
+
             if (file_exists($targetFile) && !file_exists($rootFile)) {
                 $r .= "mv source: {$targetFile} to {$rootFile}\n";
                 rename($targetFile, $rootFile);
