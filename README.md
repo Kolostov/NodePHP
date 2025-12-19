@@ -2,6 +2,11 @@
 
 Monolith of PHP Node based programming.
 
+Create new node from repo.
+```bash
+git clone https://<URL>/Kolostov/NodePHP.git .
+```
+
 Link existing git repo as new node Project:
 ```bash
 php node git Project
@@ -18,6 +23,19 @@ Defining node parameters in *node.json* file:
 ```json
 {
     "name": "Sample",
+    "structure": [
+        "Depricated" => "Files that are considered depricated.",
+        "Log" => [
+            "Internal" => "Application runtime logs",
+            "Access" => "HTTP request logs",
+            "Error" => "Error and exception logs",
+            "Audit" => "Security and audit trails",
+        ],
+        "Git" => [
+            "Node" => "Node.php project repository",
+            "Project" => "All excluding the Node.php",
+        ],
+    ],
     "require": []
 }
 ```
