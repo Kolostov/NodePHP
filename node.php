@@ -488,10 +488,6 @@ if (function_exists("cli_help") === !1) {
                 $r .= substr($fn, 4) . " " . $fn(true, []) . "\n";
             }
         }
-        $r .= "\nAvailable resources:\n";
-        foreach (callStructure() as $resource) {
-            $r .= "<{$resource[0]}> {$resource[2]} \n";
-        }
         return $r;
     }
 }
@@ -865,7 +861,14 @@ if (function_exists("cli_list") === !1) {
             }
             return "E: Could not list resource, invalid resource name {$call}.\n";
         }
-        return "E: Missing argument, call list <resource>\n";
+
+        $r = "Available resources:\n";
+        foreach (callStructure() as $resource) {
+            $rp = str_replace(ROOT_PATH, "", $resource[1]);
+            $r .= "<{$resource[0]}> {$resource[2]} ({$rp}) \n";
+        }
+
+        return "{$r}\nCall list <resource>\n";
     }
 }
 
