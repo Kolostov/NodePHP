@@ -180,14 +180,37 @@ try {
         unset($NODE_STRUCTURE_DEFINITIONS);
 
         # Main entry point node.
+        $NODE_NAME = $node["name"] ?? "Noname";
         if (defined("NODE_NAME") === !1) {
-            define("NODE_NAME", $node["name"] ?? "Noname");
+            define("NODE_NAME", $NODE_NAME);
             define("NODE_STRUCTURE", $NODE_STRUCTURE ?? []);
+        }
+
+        if (file_exists("{$LOCAL_PATH}.env")) {
+            $lines = file(
+                "{$LOCAL_PATH}.env",
+                FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES,
+            );
+            foreach ($lines as $line) {
+                if (str_starts_with($line, "#") || !str_contains($line, "=")) {
+                    continue;
+                }
+
+                [$key, $value] = explode("=", $line, 2);
+                $key = "{$NODE_NAME}:" . strtoupper(trim($key));
+                $value = trim(trim($value), "'\"");
+
+                $_ENV[$key] = $value;
+
+                putenv("{$key}={$value}");
+                unset($line, $key, $value);
+            }
+            unset($lines);
         }
 
         $NODE_REQUIRE = $node["require"] ?? [];
 
-        unset($node);
+        unset($node, $NODE_NAME);
     }
 } catch (Exception $e) {
     $msg = "Invalid {$NODE_STRUCTURE_DEFINITIONS}: " . json_last_error_msg();
