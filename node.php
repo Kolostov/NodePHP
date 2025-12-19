@@ -285,6 +285,18 @@ if (function_exists("includeStructure") === !1) {
         walkStructure(
             $NODE_STRUCTURE,
             function (string $path): string {
+                $exclude = ["Git", "Test", "Public"];
+                if (PHP_SAPI !== "cli") {
+                    $exclude = [...$exclude, ["Migration"]];
+                }
+
+                foreach ($exclude as $part) {
+                    $ex = DIRECTORY_SEPARATOR . $part . DIRECTORY_SEPARATOR;
+                    if (strpos($path, $ex)) {
+                        return "";
+                    }
+                }
+
                 if (is_dir($path)) {
                     if ($php = glob($path . DIRECTORY_SEPARATOR . "*.php")) {
                         foreach ($php as $fn) {
@@ -597,7 +609,7 @@ if (function_exists("cli_test") === !1) {
                     }
                 }
             } catch (Exception $e) {
-                $output .= "  ✗ Error loading test: " . $e->getMessage() . "\n";
+                $output .= "\t✗ Error loading test: " . $e->getMessage() . "\n";
                 $failed++;
             }
             ob_end_clean();
@@ -788,7 +800,7 @@ if (function_exists("cli_list") === !1) {
             foreach (callStructure() as $c) {
                 if ($c[0] === $call) {
                     if (
-                        $resources = glob($c[1] . DIRECTORY_SEPARATOR . "*.php")
+                        $resources = glob($c[1] . DIRECTORY_SEPARATOR . "*.*")
                     ) {
                         $r = "Found (" . count($resources) . ") resources:\n";
                         foreach ($resources as $fp) {
