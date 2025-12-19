@@ -1220,7 +1220,7 @@ if (function_exists("cli_serve") === !1) {
 
         $port = $argv[0] ?? "8000";
         $host = "localhost";
-        $documentRoot = ROOT_PATH;
+        $documentRoot = ROOT_PATH . "Public" . DIRECTORY_SEPARATOR . "Entry";
 
         $socket = @fsockopen($host, (int) $port);
         if ($socket) {
