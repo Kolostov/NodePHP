@@ -357,6 +357,10 @@ if (function_exists("includeStructure") === !1) {
         walkStructure(
             $NODE_STRUCTURE,
             function (string $path): string {
+                if (strpos($path, "..") !== false) {
+                    return "";
+                }
+
                 $exclude = ["Git", "Test", "Public", "Log"];
                 if (PHP_SAPI !== "cli") {
                     $exclude = [...$exclude, ["Migration"]];
