@@ -672,6 +672,30 @@ if (function_exists("cli_help") === !1) {
     }
 }
 
+if (function_exists("cli_info") === !1) {
+    function cli_info(bool $tooltip = false, array $argv): string
+    {
+        if ($tooltip) {
+            return "<void> Shows node system information.";
+        }
+
+        $info = [];
+        $info[] = "Node: " . NODE_NAME;
+        $info[] = "Path: " . ROOT_PATH;
+        $info[] = "PHP: " . PHP_VERSION . " (" . PHP_SAPI . ")";
+        $info[] = "Structure: " . count(NODE_STRUCTURE) . " categories";
+
+        $loaded =
+            count(get_declared_classes()) - count(get_declared_interfaces());
+        $info[] = "Loaded: {$loaded} classes";
+
+        $logFiles = getAllLogFiles();
+        $info[] = "Logs: " . count($logFiles) . " files";
+
+        return implode("\n", $info) . "\n";
+    }
+}
+
 if (function_exists("cli_like") === !1) {
     function cli_like(bool $tooltip = false, array $argv): string
     {
