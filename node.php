@@ -748,6 +748,15 @@ if (function_exists("cli_new") === !1) {
                         }
 
                         return "Migration file created at {$fn} size {$size} bytes.\n";
+                    } elseif (strpos($c[1], "Public") !== false) {
+                        $ext = strpos($name, ".") !== false ? "" : ".php";
+                        $fn = $c[1] . DIRECTORY_SEPARATOR . $name . $ext;
+                        if (!file_exists($fn)) {
+                            $size = file_put_contents($fn, "\n");
+                            return "File created at {$fn} size {$size} bytes.\n";
+                        } else {
+                            return "E: File {$fn} already exists.\n";
+                        }
                     } else {
                         // Regular resource creation
                         $fc = generateBoilerplate($c[1], $name, ROOT_PATH);
