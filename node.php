@@ -9,7 +9,10 @@ if (defined("NODE_NAME") === !1) {
     $TIME_START = microtime(true);
     $ROOT_PATHS = [];
 
+    define("D", DIRECTORY_SEPARATOR);
+
     define("ROOT_PATH", $LOCAL_PATH);
+    define("LOG_PATH", ROOT_PATH . "Log" . D);
 }
 
 $ROOT_PATHS[] = $LOCAL_PATH;
@@ -203,6 +206,12 @@ try {
                 "Integration" => "Tests involving multiple nodes",
                 "Contract" => "Interface compliance tests",
                 "E2E" => "Full end-to-end request/response tests",
+            ],
+            "Log" => [
+                "Internal" => "Application runtime logs",
+                "Access" => "HTTP request logs",
+                "Error" => "Error and exception logs",
+                "Audit" => "Security and audit trails",
             ],
             "Git" => [
                 "Node" => "Node.php project repository",
@@ -489,6 +498,353 @@ if (function_exists("cli_help") === !1) {
             }
         }
         return $r;
+    }
+}
+
+if (!function_exists("r")) {
+    function r(
+        string $logMessage,
+        mixed $return = null,
+        null|array|object $dataArray = null,
+        string $logType = "Internal",
+    ): mixed {
+        static $logDirs = [
+            "Internal" => LOG_PATH . "Internal" . D,
+            "Access" => LOG_PATH . "Access" . D,
+            "Error" => LOG_PATH . "Error" . D,
+            "Audit" => LOG_PATH . "Audit" . D,
+        ];
+
+        $logDir = $logDirs[$logType] ?? $logDirs["Internal"];
+
+        $date = date("Y-m-d");
+        $logFile = "{$logDir}{$date}.log";
+
+        $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+        $caller = $backtrace[1]["function"] ?? "#rootcode";
+        $file = $backtrace[0]["file"] ?? "unknown";
+        $line = $backtrace[0]["line"] ?? 0;
+
+        $entry = [
+            "timestamp" => date("Y-m-d H:i:s"),
+            "type" => $logType,
+            "file" => str_replace(ROOT_PATH, "", $file),
+            "line" => $line,
+            "function" => $caller,
+            "message" => $logMessage,
+            "data" => $dataArray ? (array) $dataArray : null,
+            "result" => $return,
+        ];
+
+        if (PHP_SAPI !== "cli") {
+            $entry["ip"] = $_SERVER["REMOTE_ADDR"] ?? "cli";
+            $entry["method"] = $_SERVER["REQUEST_METHOD"] ?? "cli";
+            $entry["uri"] = $_SERVER["REQUEST_URI"] ?? "cli";
+
+            if (session_status() !== PHP_SESSION_NONE) {
+                $entry["session_id"] = session_id();
+                if (isset($_SESSION["loggedin"]["user_id"])) {
+                    $entry["user_id"] = $_SESSION["loggedin"]["user_id"];
+                }
+            }
+        }
+
+        file_put_contents(
+            $logFile,
+            json_encode(
+                $entry,
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+            ) . "\n",
+            FILE_APPEND,
+        );
+
+        return $return;
+    }
+}
+
+if (!function_exists("logReadFile")) {
+    function logReadFile(string $path): array
+    {
+        if (!file_exists($path)) {
+            return [];
+        }
+
+        $logs = [];
+        $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+        foreach ($lines as $line) {
+            if (trim($line) === "") {
+                continue;
+            }
+
+            try {
+                $logEntry = json_decode($line, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $logs[] = $logEntry;
+                }
+            } catch (Exception $e) {
+                // Skip invalid JSON lines
+            }
+        }
+
+        return $logs;
+    }
+}
+
+if (!function_exists("logReadFilesArray")) {
+    function logReadFilesArray(array $arrayOfPathsToLogFiles): array
+    {
+        if (empty($arrayOfPathsToLogFiles)) {
+            return [];
+        }
+
+        $allLogs = [];
+        foreach ($arrayOfPathsToLogFiles as $path) {
+            $allLogs = array_merge($allLogs, logReadFile($path));
+        }
+
+        // Sort by timestamp (newest first)
+        usort($allLogs, function ($a, $b) {
+            return strtotime($b["timestamp"] ?? "1970-01-01") <=>
+                strtotime($a["timestamp"] ?? "1970-01-01");
+        });
+
+        return $allLogs;
+    }
+}
+
+if (!function_exists("getAllLogFiles")) {
+    function getAllLogFiles(): array
+    {
+        $logFiles = [];
+
+        // Internal logs from node structure
+        $logTypes = ["Internal", "Access", "Error", "Audit"];
+        foreach ($logTypes as $type) {
+            $logDir = LOG_PATH . $type . D;
+            if (is_dir($logDir)) {
+                $files = glob($logDir . "*.log");
+                foreach ($files as $file) {
+                    $logFiles[] = [
+                        "type" => $type,
+                        "path" => $file,
+                        "size" => filesize($file),
+                        "modified" => filemtime($file),
+                    ];
+                }
+            }
+        }
+
+        // System logs (Apache, Nginx)
+        $systemLogs = [
+            // Apache
+            "/var/log/apache2/access.log",
+            "/var/log/apache2/error.log",
+            "/var/log/httpd/access_log",
+            "/var/log/httpd/error_log",
+            // Nginx
+            "/var/log/nginx/access.log",
+            "/var/log/nginx/error.log",
+            // Common locations
+            "/var/log/syslog",
+            "/var/log/messages",
+        ];
+
+        foreach ($systemLogs as $logPath) {
+            if (file_exists($logPath) && is_readable($logPath)) {
+                $logFiles[] = [
+                    "type" => "system",
+                    "path" => $logPath,
+                    "size" => filesize($logPath),
+                    "modified" => filemtime($logPath),
+                ];
+            }
+        }
+
+        return $logFiles;
+    }
+}
+
+if (function_exists("cli_log") === !1) {
+    function cli_log(bool $tooltip = false, array $argv): string
+    {
+        if ($tooltip) {
+            return "[action] [options] Manage and view logs. Actions: list, show, clear, tail";
+        }
+
+        $action = $argv[0] ?? "list";
+        $options = array_slice($argv, 1);
+
+        return match ($action) {
+            "list" => listLogs($options),
+            "show" => showLogs($options),
+            "clear" => clearLogs($options),
+            "tail" => tailLogs($options),
+            default
+                => "E: Unknown action. Available: list, show, clear, tail\n",
+        };
+    }
+
+    function listLogs(array $options): string
+    {
+        $logFiles = getAllLogFiles();
+        $output = "Available Log Files:\n\n";
+
+        $totalSize = 0;
+        if (empty($logFiles)) {
+            $output .= "No files found.\n";
+        }
+
+        foreach ($logFiles as $log) {
+            $size = number_format($log["size"] / 1024, 2) . " KB";
+            $modified = date("Y-m-d H:i:s", $log["modified"]);
+            $type = str_pad($log["type"], 10);
+            $output .= sprintf(
+                "[%s] %-60s %12s %s\n",
+                $type,
+                $log["path"],
+                $size,
+                $modified,
+            );
+            $totalSize += $log["size"];
+        }
+
+        $size = number_format($totalSize / (1024 * 1024), 2);
+        $output .= "\nTotal: " . count($logFiles) . " files, {$size} MB\n";
+
+        return $output;
+    }
+
+    function showLogs(array $options): string
+    {
+        if (empty($options)) {
+            return "E: Specify log file or type. Usage: log show <file|type> [limit]\n";
+        }
+
+        $target = $options[0];
+        $limit = $options[1] ?? 50;
+
+        $logFiles = getAllLogFiles();
+        $selectedLogs = [];
+
+        foreach ($logFiles as $log) {
+            if ($log["type"] === $target || $log["path"] === $target) {
+                $selectedLogs[] = $log["path"];
+            }
+        }
+
+        if (empty($selectedLogs)) {
+            foreach ($logFiles as $log) {
+                if (strpos($log["path"], $target) !== false) {
+                    $selectedLogs[] = $log["path"];
+                }
+            }
+        }
+
+        if (empty($selectedLogs)) {
+            return "E: No logs found matching '{$target}'\n";
+        }
+
+        $allEntries = logReadFilesArray($selectedLogs);
+        $limitedEntries = array_slice($allEntries, 0, $limit);
+
+        $output =
+            "Showing {$limit} of " . count($allEntries) . " log entries:\n";
+
+        foreach ($limitedEntries as $entry) {
+            $timestamp = $entry["timestamp"] ?? "unknown";
+            $type = $entry["type"] ?? "unknown";
+            $message = $entry["message"] ?? "";
+            $function = $entry["function"] ?? "";
+
+            $output .= sprintf(
+                "[%s] %-10s %-20s %s\n",
+                $timestamp,
+                $type,
+                $function,
+                substr($message, 0, 40) . (strlen($message) > 40 ? "..." : ""),
+            );
+
+            if (isset($entry["data"]) && !empty($entry["data"])) {
+                $dataStr = json_encode($entry["data"], JSON_PRETTY_PRINT);
+                $lines = explode("\n", $dataStr);
+                foreach (array_slice($lines, 0, 3) as $line) {
+                    $output .= "  {$line}\n";
+                }
+                if (count($lines) > 3) {
+                    $output .= "  ...\n";
+                }
+            }
+        }
+
+        return $output;
+    }
+
+    function clearLogs(array $options): string
+    {
+        if (empty($options)) {
+            return "E: Specify what to clear. Usage: log clear <file|type|all>\n";
+        }
+
+        $target = $options[0];
+        $logFiles = getAllLogFiles();
+        $cleared = 0;
+        $totalSize = 0;
+
+        if ($target === "all") {
+            foreach ($logFiles as $log) {
+                if (file_exists($log["path"]) && is_writable($log["path"])) {
+                    $size = filesize($log["path"]);
+                    if (file_put_contents($log["path"], "") !== false) {
+                        $cleared++;
+                        $totalSize += $size;
+                    }
+                }
+            }
+            return "Cleared {$cleared} log files, freed " .
+                number_format($totalSize / (1024 * 1024), 2) .
+                " MB\n";
+        }
+
+        foreach ($logFiles as $log) {
+            if (
+                ($log["type"] === $target || $log["path"] === $target) &&
+                file_exists($log["path"]) &&
+                is_writable($log["path"])
+            ) {
+                $size = filesize($log["path"]);
+                if (file_put_contents($log["path"], "") !== false) {
+                    $cleared++;
+                    $totalSize += $size;
+                }
+            }
+        }
+
+        if ($cleared > 0) {
+            $size = number_format($totalSize / 1024, 2);
+            return "Cleared {$cleared} log files, freed {$size} KB\n";
+        }
+
+        return "No logs cleared. Check file permissions or path.\n";
+    }
+
+    function tailLogs(array $options): string
+    {
+        if (empty($options)) {
+            return "E: Specify log file. Usage: log tail <file> [lines]\n";
+        }
+
+        $file = $options[0];
+        $lines = $options[1] ?? 10;
+
+        if (!file_exists($file)) {
+            return "E: File not found: {$file}\n";
+        }
+
+        $content = shell_exec("tail -n {$lines} " . escapeshellarg($file));
+
+        return "Last {$lines} lines of {$file}:\n\n" .
+            ($content ?: "No content or error reading file\n");
     }
 }
 
