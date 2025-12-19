@@ -485,6 +485,157 @@ if (function_exists("generateBoilerplate") === !1) {
     }
 }
 
+if (function_exists("cli_env") === !1) {
+    function cli_env(bool $tooltip = false, array $argv): string
+    {
+        if ($tooltip) {
+            return "<action> [key=value] Manage environment variables. Actions: list, set, get";
+        }
+
+        $action = $argv[0] ?? "list";
+        $envFile = ROOT_PATH . ".env";
+
+        if (!file_exists($envFile)) {
+            file_put_contents($envFile, "# Environment variables\n");
+        }
+
+        switch ($action) {
+            case "list":
+                $lines = file(
+                    $envFile,
+                    FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES,
+                );
+                $output = "Environment variables:\n";
+                foreach ($lines as $line) {
+                    if (!str_starts_with($line, "#")) {
+                        $output .= "{$line}\n";
+                    }
+                }
+                return $output;
+
+            case "set":
+                if (count($argv) < 2) {
+                    return "E: Usage: env set KEY=VALUE\n";
+                }
+
+                $keyValue = $argv[1];
+                if (strpos($keyValue, "=") === false) {
+                    return "E: Invalid format. Use KEY=VALUE\n";
+                }
+
+                [$key, $value] = explode("=", $keyValue, 2);
+                $key = trim($key);
+                $value = trim($value);
+
+                $lines = file($envFile, FILE_IGNORE_NEW_LINES);
+                $found = false;
+
+                foreach ($lines as &$line) {
+                    if (str_starts_with($line, "{$key}=")) {
+                        $line = "{$key}={$value}";
+                        $found = true;
+                        break;
+                    }
+                }
+
+                if (!$found) {
+                    $lines[] = "{$key}={$value}";
+                }
+
+                file_put_contents($envFile, implode("\n", $lines));
+                return "Set {$key}={$value}\n";
+
+            case "get":
+                if (count($argv) < 2) {
+                    return "E: Usage: env get KEY\n";
+                }
+
+                $key = $argv[1];
+                $lines = file($envFile, FILE_IGNORE_NEW_LINES);
+
+                foreach ($lines as $line) {
+                    if (str_starts_with($line, $key . "=")) {
+                        [, $value] = explode("=", $line, 2);
+                        return "{$key}={$value}\n";
+                    }
+                }
+
+                return "E: Key '{$key}' not found\n";
+
+            default:
+                return "E: Unknown action. Available: list, set, get\n";
+        }
+    }
+}
+
+if (function_exists("cli_git") === !1) {
+    function cli_git(bool $tooltip = false, array $argv): string
+    {
+        if ($tooltip) {
+            return "[Node|Project] Toggle git repository target.";
+        }
+
+        $gitDir = ROOT_PATH . ".git";
+        $mode = $argv[0] ?? "";
+
+        if (!is_dir($gitDir) && empty($mode)) {
+            return "E: Node git not configured at " . ROOT_PATH . "\n";
+        }
+
+        $gitIgnore = ROOT_PATH . ".gitignore";
+
+        $isNodeMode =
+            file_exists($gitIgnore) &&
+            strpos(trim(file_get_contents($gitIgnore)), "!node.php");
+
+        if (!$mode) {
+            return "Git targeting " . ($isNodeMode ? "Node" : "Project") . "\n";
+        }
+
+        $target = ucfirst(strtolower($mode));
+        $source = $target === "Node" ? "Project" : "Node";
+
+        if (
+            ($isNodeMode && $target === "Node") ||
+            (!$isNodeMode && $target === "Project" && file_exists($gitIgnore))
+        ) {
+            return "Git already targeting {$target}\n";
+        }
+
+        $rootDir = ROOT_PATH . "Git" . DIRECTORY_SEPARATOR;
+        $targetDir = $rootDir . $target . DIRECTORY_SEPARATOR;
+        $sourceDir = $rootDir . $source . DIRECTORY_SEPARATOR;
+
+        $flagMoveToSource = count(scandir($sourceDir)) > 2;
+
+        $r =
+            "Preparing to target Git...\n" .
+            ($flagMoveToSource
+                ? "Warning: {$sourceDir} contains files, skipping root->source moves.\n\n"
+                : "\n");
+
+        foreach ([".git", "README.md", ".gitignore"] as $file) {
+            $rootFile = ROOT_PATH . $file;
+            $sourceFile = "{$sourceDir}{$file}";
+            $targetFile = "{$targetDir}{$file}";
+
+            if (!$flagMoveToSource) {
+                if (file_exists($rootFile) && !file_exists($sourceFile)) {
+                    $r .= "mv root: {$rootFile} to {$sourceFile}\n";
+                    rename($rootFile, $sourceFile);
+                }
+            }
+
+            if (file_exists($targetFile) && !file_exists($rootFile)) {
+                $r .= "mv source: {$targetFile} to {$rootFile}\n";
+                rename($targetFile, $rootFile);
+            }
+        }
+
+        return "{$r}\nGit now targeting {$target}\n";
+    }
+}
+
 if (function_exists("cli_help") === !1) {
     function cli_help(bool $tooltip = false, array $argv): string
     {
@@ -501,6 +652,167 @@ if (function_exists("cli_help") === !1) {
             "Static file path resolution function\n\tf(string path, bool critical) : string\n" .
             "Result logging function\n\tr(string logMessage, mixed return, ?array|obj contextData = [], ?string logType = Internal)\n" .
             "LogTypes: [Internal, Access, Audit, Error]\n";
+    }
+}
+
+if (function_exists("cli_like") === !1) {
+    function cli_like(bool $tooltip = false, array $argv): string
+    {
+        if ($tooltip) {
+            return "<search_term> Searches resources, functions and classes by name or path.";
+        }
+
+        if ($search = $argv[0] ?? null) {
+            $search = strtolower($search);
+            $matches = [];
+            $seen = [];
+
+            foreach (callStructure() as $c) {
+                $relPath = str_starts_with($c[1], ROOT_PATH)
+                    ? substr($c[1], strlen(ROOT_PATH))
+                    : $c[1];
+
+                if (strpos(strtolower($relPath), $search) !== false) {
+                    $key = "resource:{$relPath}";
+                    if (!isset($seen[$key])) {
+                        $matches[] = "[resource] <{$c[0]}> {$relPath} - {$c[2]}";
+                        $seen[$key] = true;
+                    }
+                }
+            }
+
+            # Search functions
+            foreach (get_defined_functions() as $type => $functions) {
+                foreach ($functions as $function) {
+                    if (strpos(strtolower($function), $search) !== false) {
+                        $key = "function:{$function}";
+                        if (!isset($seen[$key])) {
+                            $source = $type === "user" ? "user" : "internal";
+                            $matches[] = "[function:{$source}] {$function}()";
+                            $seen[$key] = true;
+                        }
+                    }
+                }
+            }
+
+            # Search classes
+            foreach (get_declared_classes() as $class) {
+                if (strpos(strtolower($class), $search) !== false) {
+                    $key = "class:{$class}";
+                    if (!isset($seen[$key])) {
+                        $reflection = new ReflectionClass($class);
+                        $source = $reflection->isInternal()
+                            ? "internal"
+                            : "user";
+                        $modifiers = [];
+                        $reflection->isAbstract() &&
+                            ($modifiers[] = "abstract");
+                        $reflection->isFinal() && ($modifiers[] = "final");
+                        $mod = $modifiers
+                            ? "[" . implode(" ", $modifiers) . "] "
+                            : "";
+                        $matches[] = "[class:{$source}] {$mod}{$class}";
+                        $seen[$key] = true;
+                    }
+                }
+            }
+
+            # Search interfaces
+            foreach (get_declared_interfaces() as $interface) {
+                if (strpos(strtolower($interface), $search) !== false) {
+                    $key = "interface:{$interface}";
+                    if (!isset($seen[$key])) {
+                        $reflection = new ReflectionClass($interface);
+                        $source = $reflection->isInternal()
+                            ? "internal"
+                            : "user";
+                        $matches[] = "[interface:{$source}] {$interface}";
+                        $seen[$key] = true;
+                    }
+                }
+            }
+
+            # Search traits
+            foreach (get_declared_traits() as $trait) {
+                if (strpos(strtolower($trait), $search) !== false) {
+                    $key = "trait:{$trait}";
+                    if (!isset($seen[$key])) {
+                        $reflection = new ReflectionClass($trait);
+                        $source = $reflection->isInternal()
+                            ? "internal"
+                            : "user";
+                        $matches[] = "[trait:{$source}] {$trait}";
+                        $seen[$key] = true;
+                    }
+                }
+            }
+
+            # Search constants with value preview
+            foreach (get_defined_constants(true) as $scope => $constants) {
+                foreach ($constants as $name => $value) {
+                    if (strpos(strtolower($name), $search) !== false) {
+                        $key = "constant:{$name}";
+                        if (!isset($seen[$key])) {
+                            $valuePreview = is_scalar($value)
+                                ? (string) $value
+                                : gettype($value);
+                            if (strlen($valuePreview) > 30) {
+                                $valuePreview =
+                                    substr($valuePreview, 0, 27) . "...";
+                            }
+                            $matches[] = "[constant:{$scope}] {$name} = \"{$valuePreview}\"";
+                            $seen[$key] = true;
+                        }
+                    }
+                }
+            }
+
+            /* sort($matches); */
+
+            if (!empty($matches) && ($c = count($matches))) {
+                $ml = implode("\n", $matches);
+                return "Found {$c} match(es):\n{$ml}\n";
+            }
+            return "No matches found for '{$search}'.\n";
+        }
+        return "E: Missing search term, call like <term>\n";
+    }
+}
+
+if (function_exists("cli_list") === !1) {
+    function cli_list(bool $tooltip = false, array $argv): string
+    {
+        if ($tooltip) {
+            return "<resource> Lists all existing resources of type.";
+        }
+
+        if ($call = $argv[0] ?? null) {
+            foreach (callStructure() as $c) {
+                if ($c[0] === $call) {
+                    if (
+                        $resources = glob($c[1] . DIRECTORY_SEPARATOR . "*.*")
+                    ) {
+                        $r = "Found (" . count($resources) . ") resources:\n";
+                        foreach ($resources as $fp) {
+                            $mtime = date("Y-m-d H:i:s", filemtime($fp));
+                            $fsize = number_format(filesize($fp));
+                            $r .= "{$mtime} $fp, {$fsize} bytes\n";
+                        }
+                        return $r;
+                    }
+                    return "No resources for {$call} found at {$c[1]}.\n";
+                }
+            }
+            return "E: Could not list resource, invalid resource name {$call}.\n";
+        }
+
+        $r = "Available resources:\n";
+        foreach (callStructure() as $resource) {
+            $rp = str_replace(ROOT_PATH, "", $resource[1]);
+            $r .= "<{$resource[0]}> {$resource[2]} ({$rp}) \n";
+        }
+
+        return "{$r}\nCall list <resource>\n";
     }
 }
 
@@ -669,533 +981,186 @@ if (!function_exists("getAllLogFiles")) {
     }
 }
 
-if (function_exists("cli_git") === !1) {
-    function cli_git(bool $tooltip = false, array $argv): string
+if (function_exists("cli_log") === !1) {
+    function cli_log(bool $tooltip = false, array $argv): string
     {
         if ($tooltip) {
-            return "[Node|Project] Toggle git repository target.";
+            return "[action] [options] Manage and view logs. Actions: list, show, clear, tail";
         }
 
-        $gitDir = ROOT_PATH . ".git";
-        $mode = $argv[0] ?? "";
+        $action = $argv[0] ?? "list";
+        $options = array_slice($argv, 1);
 
-        if (!is_dir($gitDir) && empty($mode)) {
-            return "E: Node git not configured at " . ROOT_PATH . "\n";
-        }
-
-        $gitIgnore = ROOT_PATH . ".gitignore";
-
-        $isNodeMode =
-            file_exists($gitIgnore) &&
-            strpos(trim(file_get_contents($gitIgnore)), "!node.php");
-
-        if (!$mode) {
-            return "Git targeting " . ($isNodeMode ? "Node" : "Project") . "\n";
-        }
-
-        $target = ucfirst(strtolower($mode));
-        $source = $target === "Node" ? "Project" : "Node";
-
-        if (
-            ($isNodeMode && $target === "Node") ||
-            (!$isNodeMode && $target === "Project" && file_exists($gitIgnore))
-        ) {
-            return "Git already targeting {$target}\n";
-        }
-
-        $rootDir = ROOT_PATH . "Git" . DIRECTORY_SEPARATOR;
-        $targetDir = $rootDir . $target . DIRECTORY_SEPARATOR;
-        $sourceDir = $rootDir . $source . DIRECTORY_SEPARATOR;
-
-        $flagMoveToSource = count(scandir($sourceDir)) > 2;
-
-        $r =
-            "Preparing to target Git...\n" .
-            ($flagMoveToSource
-                ? "Warning: {$sourceDir} contains files, skipping root->source moves.\n\n"
-                : "\n");
-
-        foreach ([".git", "README.md", ".gitignore"] as $file) {
-            $rootFile = ROOT_PATH . $file;
-            $sourceFile = "{$sourceDir}{$file}";
-            $targetFile = "{$targetDir}{$file}";
-
-            if (!$flagMoveToSource) {
-                if (file_exists($rootFile) && !file_exists($sourceFile)) {
-                    $r .= "mv root: {$rootFile} to {$sourceFile}\n";
-                    rename($rootFile, $sourceFile);
-                }
-            }
-
-            if (file_exists($targetFile) && !file_exists($rootFile)) {
-                $r .= "mv source: {$targetFile} to {$rootFile}\n";
-                rename($targetFile, $rootFile);
-            }
-        }
-
-        return "{$r}\nGit now targeting {$target}\n";
+        return match ($action) {
+            "list" => listLogs($options),
+            "show" => showLogs($options),
+            "clear" => clearLogs($options),
+            "tail" => tailLogs($options),
+            default
+                => "E: Unknown action. Available: list, show, clear, tail\n",
+        };
     }
-}
 
-if (function_exists("cli_test") === !1) {
-    function cli_test(bool $tooltip = false, array $argv): string
+    function listLogs(array $options): string
     {
-        if ($tooltip) {
-            return "<type> [filter] Runs tests of specified type with optional filter.";
+        $logFiles = getAllLogFiles();
+        $output = "Available Log Files:\n\n";
+
+        $totalSize = 0;
+        if (empty($logFiles)) {
+            $output .= "No files found.\n";
         }
 
-        $type = $argv[0] ?? "Unit"; // Default to Unit tests
-        $filter = $argv[1] ?? "";
-
-        $testTypes = ["Unit", "Integration", "Contract", "E2E"];
-
-        if (!in_array($type, $testTypes)) {
-            return "E: Invalid test type. Available: " .
-                implode(", ", $testTypes) .
-                "\n";
+        foreach ($logFiles as $log) {
+            $size = number_format($log["size"] / 1024, 2) . " KB";
+            $modified = date("Y-m-d H:i:s", $log["modified"]);
+            $type = str_pad($log["type"], 10);
+            $output .= sprintf(
+                "[%s] %-60s %12s %s\n",
+                $type,
+                $log["path"],
+                $size,
+                $modified,
+            );
+            $totalSize += $log["size"];
         }
 
-        $testPath = ROOT_PATH . "Test" . DIRECTORY_SEPARATOR . $type;
+        $size = number_format($totalSize / (1024 * 1024), 2);
+        $output .= "\nTotal: " . count($logFiles) . " files, {$size} MB\n";
 
-        if (!is_dir($testPath)) {
-            return "E: Test directory not found: {$testPath}\n";
+        return $output;
+    }
+
+    function showLogs(array $options): string
+    {
+        if (empty($options)) {
+            return "E: Specify log file or type. Usage: log show <file|type> [limit]\n";
         }
 
-        $phpFiles = glob($testPath . DIRECTORY_SEPARATOR . "*.php");
+        $target = $options[0];
+        $limit = $options[1] ?? 50;
 
-        if (empty($phpFiles)) {
-            return "No {$type} tests found.\n";
-        }
+        $logFiles = getAllLogFiles();
+        $selectedLogs = [];
 
-        $output = "Running {$type} tests...\n";
-        $output .= "\n";
-
-        $passed = 0;
-        $failed = 0;
-        $total = 0;
-
-        foreach ($phpFiles as $testFile) {
-            $fileName = basename($testFile);
-
-            // Apply filter if provided
-            if ($filter && strpos($fileName, $filter) === false) {
-                continue;
+        foreach ($logFiles as $log) {
+            if ($log["type"] === $target || $log["path"] === $target) {
+                $selectedLogs[] = $log["path"];
             }
-
-            $output .= "Test: {$fileName}\n";
-
-            ob_start();
-            try {
-                include_once $testFile;
-
-                $functions = get_defined_functions()["user"];
-                $testFunctions = array_filter(
-                    $functions,
-                    fn($f) => str_starts_with($f, "test_"),
-                );
-
-                foreach ($testFunctions as $testFunc) {
-                    $total++;
-                    try {
-                        $testFunc();
-                        $output .= "\t✓ {$testFunc}()\n";
-                        $passed++;
-                    } catch (Exception $e) {
-                        $output .=
-                            "\t✗ {$testFunc}(): " . $e->getMessage() . "\n";
-                        $failed++;
-                    }
-                }
-
-                $classes = get_declared_classes();
-                foreach ($classes as $class) {
-                    if (
-                        str_ends_with($class, "Test") ||
-                        str_ends_with($class, "TestCase")
-                    ) {
-                        $reflection = new ReflectionClass($class);
-                        if ($reflection->hasMethod("run")) {
-                            $total++;
-                            try {
-                                $instance = $reflection->newInstance();
-                                $instance->run();
-                                $output .= "\t✓ {$class}::run()\n";
-                                $passed++;
-                            } catch (Exception $e) {
-                                $output .=
-                                    "\t✗ {$class}::run(): " .
-                                    $e->getMessage() .
-                                    "\n";
-                                $failed++;
-                            }
-                        }
-                    }
-                }
-            } catch (Exception $e) {
-                $output .= "\t✗ Error loading test: " . $e->getMessage() . "\n";
-                $failed++;
-            }
-            ob_end_clean();
         }
 
-        $output .= "\n";
-        $output .= "Results: {$passed}/{$total} passed, {$failed} failed\n";
+        if (empty($selectedLogs)) {
+            foreach ($logFiles as $log) {
+                if (strpos($log["path"], $target) !== false) {
+                    $selectedLogs[] = $log["path"];
+                }
+            }
+        }
 
-        if ($failed > 0) {
-            http_response_code(1); // Non-zero exit code for CLI
+        if (empty($selectedLogs)) {
+            return "E: No logs found matching '{$target}'\n";
+        }
+
+        $allEntries = logReadFilesArray($selectedLogs);
+        $limitedEntries = array_slice($allEntries, 0, $limit);
+
+        $output =
+            "Showing {$limit} of " . count($allEntries) . " log entries:\n";
+
+        foreach ($limitedEntries as $entry) {
+            $timestamp = $entry["timestamp"] ?? "unknown";
+            $type = $entry["type"] ?? "unknown";
+            $message = $entry["message"] ?? "";
+            $function = $entry["function"] ?? "";
+
+            $output .= sprintf(
+                "[%s] %-10s %-20s %s\n",
+                $timestamp,
+                $type,
+                $function,
+                substr($message, 0, 40) . (strlen($message) > 40 ? "..." : ""),
+            );
+
+            if (isset($entry["data"]) && !empty($entry["data"])) {
+                $dataStr = json_encode($entry["data"], JSON_PRETTY_PRINT);
+                $lines = explode("\n", $dataStr);
+                foreach (array_slice($lines, 0, 3) as $line) {
+                    $output .= "  {$line}\n";
+                }
+                if (count($lines) > 3) {
+                    $output .= "  ...\n";
+                }
+            }
         }
 
         return $output;
     }
-}
 
-if (function_exists("cli_env") === !1) {
-    function cli_env(bool $tooltip = false, array $argv): string
+    function clearLogs(array $options): string
     {
-        if ($tooltip) {
-            return "<action> [key=value] Manage environment variables. Actions: list, set, get";
+        if (empty($options)) {
+            return "E: Specify what to clear. Usage: log clear <file|type|all>\n";
         }
 
-        $action = $argv[0] ?? "list";
-        $envFile = ROOT_PATH . ".env";
+        $target = $options[0];
+        $logFiles = getAllLogFiles();
+        $cleared = 0;
+        $totalSize = 0;
 
-        if (!file_exists($envFile)) {
-            file_put_contents($envFile, "# Environment variables\n");
+        if ($target === "all") {
+            foreach ($logFiles as $log) {
+                if (file_exists($log["path"]) && is_writable($log["path"])) {
+                    $size = filesize($log["path"]);
+                    if (file_put_contents($log["path"], "") !== false) {
+                        $cleared++;
+                        $totalSize += $size;
+                    }
+                }
+            }
+            return "Cleared {$cleared} log files, freed " .
+                number_format($totalSize / (1024 * 1024), 2) .
+                " MB\n";
         }
 
-        switch ($action) {
-            case "list":
-                $lines = file(
-                    $envFile,
-                    FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES,
-                );
-                $output = "Environment variables:\n";
-                foreach ($lines as $line) {
-                    if (!str_starts_with($line, "#")) {
-                        $output .= "{$line}\n";
-                    }
+        foreach ($logFiles as $log) {
+            if (
+                ($log["type"] === $target || $log["path"] === $target) &&
+                file_exists($log["path"]) &&
+                is_writable($log["path"])
+            ) {
+                $size = filesize($log["path"]);
+                if (file_put_contents($log["path"], "") !== false) {
+                    $cleared++;
+                    $totalSize += $size;
                 }
-                return $output;
-
-            case "set":
-                if (count($argv) < 2) {
-                    return "E: Usage: env set KEY=VALUE\n";
-                }
-
-                $keyValue = $argv[1];
-                if (strpos($keyValue, "=") === false) {
-                    return "E: Invalid format. Use KEY=VALUE\n";
-                }
-
-                [$key, $value] = explode("=", $keyValue, 2);
-                $key = trim($key);
-                $value = trim($value);
-
-                $lines = file($envFile, FILE_IGNORE_NEW_LINES);
-                $found = false;
-
-                foreach ($lines as &$line) {
-                    if (str_starts_with($line, "{$key}=")) {
-                        $line = "{$key}={$value}";
-                        $found = true;
-                        break;
-                    }
-                }
-
-                if (!$found) {
-                    $lines[] = "{$key}={$value}";
-                }
-
-                file_put_contents($envFile, implode("\n", $lines));
-                return "Set {$key}={$value}\n";
-
-            case "get":
-                if (count($argv) < 2) {
-                    return "E: Usage: env get KEY\n";
-                }
-
-                $key = $argv[1];
-                $lines = file($envFile, FILE_IGNORE_NEW_LINES);
-
-                foreach ($lines as $line) {
-                    if (str_starts_with($line, $key . "=")) {
-                        [, $value] = explode("=", $line, 2);
-                        return "{$key}={$value}\n";
-                    }
-                }
-
-                return "E: Key '{$key}' not found\n";
-
-            default:
-                return "E: Unknown action. Available: list, set, get\n";
+            }
         }
+
+        if ($cleared > 0) {
+            $size = number_format($totalSize / 1024, 2);
+            return "Cleared {$cleared} log files, freed {$size} KB\n";
+        }
+
+        return "No logs cleared. Check file permissions or path.\n";
     }
-}
 
-if (function_exists("cli_new") === !1) {
-    function cli_new(bool $tooltip = false, array $argv): string
+    function tailLogs(array $options): string
     {
-        if ($tooltip) {
-            return "<resource> <name> Creates new raw resource with improvised boilerplate.";
+        if (empty($options)) {
+            return "E: Specify log file. Usage: log tail <file> [lines]\n";
         }
 
-        if (($call = $argv[0] ?? null) && ($name = $argv[1] ?? null)) {
-            foreach (callStructure() as $c) {
-                if ($c[0] === $call) {
-                    if (strpos($c[1], "Migration") !== false) {
-                        $timestamp = date("Ymd_His");
-                        $safeName = preg_replace("/[^a-zA-Z0-9_]/", "_", $name);
-                        $migrationName = "{$timestamp}_{$safeName}";
+        $file = $options[0];
+        $lines = $options[1] ?? 10;
 
-                        $fc = generateBoilerplate($c[1], $safeName, ROOT_PATH);
-                        $fn =
-                            $c[1] .
-                            DIRECTORY_SEPARATOR .
-                            "{$migrationName}{$fc[1]}.php";
-
-                        if (strpos($c[1], "Migration/PHP") !== false) {
-                            $className = str_replace(
-                                ["-", "_"],
-                                "",
-                                ucwords($safeName, "-_"),
-                            );
-                            $content = <<<PHP
-                            <?php declare(strict_types=1);
-
-                            class {$className}PHP
-                            {
-                                public function up(): void
-                                {
-                                    // Migration logic here
-                                }
-
-                                public function down(): void
-                                {
-                                    // Rollback logic here
-                                }
-                            }
-                            PHP;
-
-                            file_put_contents($fn, $content);
-                            $size = filesize($fn);
-                        } else {
-                            $size = file_put_contents($fn, $fc[0]);
-                        }
-
-                        return "Migration file created at {$fn} size {$size} bytes.\n";
-                    } elseif (strpos($c[1], "Public") !== false) {
-                        $ext = strpos($name, ".") !== false ? "" : ".php";
-                        $fn = $c[1] . DIRECTORY_SEPARATOR . $name . $ext;
-                        if (!file_exists($fn)) {
-                            $size = file_put_contents($fn, "\n");
-                            return "File created at {$fn} size {$size} bytes.\n";
-                        } else {
-                            return "E: File {$fn} already exists.\n";
-                        }
-                    } else {
-                        // Regular resource creation
-                        $fc = generateBoilerplate($c[1], $name, ROOT_PATH);
-                        $fn =
-                            $c[1] . DIRECTORY_SEPARATOR . "{$name}{$fc[1]}.php";
-                        if (!file_exists($fn)) {
-                            $size = file_put_contents($fn, $fc[0]);
-                            return "File created at {$fn} size {$size} bytes.\n";
-                        } else {
-                            return "E: File {$fn} already exists.\n";
-                        }
-                    }
-                }
-            }
-            return "E: Could not create resource, invalid resource name {$call}.\n";
-        }
-        return "E: Missing argument(s), call new <resource> <name>\n";
-    }
-}
-
-if (function_exists("cli_list") === !1) {
-    function cli_list(bool $tooltip = false, array $argv): string
-    {
-        if ($tooltip) {
-            return "<resource> Lists all existing resources of type.";
+        if (!file_exists($file)) {
+            return "E: File not found: {$file}\n";
         }
 
-        if ($call = $argv[0] ?? null) {
-            foreach (callStructure() as $c) {
-                if ($c[0] === $call) {
-                    if (
-                        $resources = glob($c[1] . DIRECTORY_SEPARATOR . "*.*")
-                    ) {
-                        $r = "Found (" . count($resources) . ") resources:\n";
-                        foreach ($resources as $fp) {
-                            $mtime = date("Y-m-d H:i:s", filemtime($fp));
-                            $fsize = number_format(filesize($fp));
-                            $r .= "{$mtime} $fp, {$fsize} bytes\n";
-                        }
-                        return $r;
-                    }
-                    return "No resources for {$call} found at {$c[1]}.\n";
-                }
-            }
-            return "E: Could not list resource, invalid resource name {$call}.\n";
-        }
+        $content = shell_exec("tail -n {$lines} " . escapeshellarg($file));
 
-        $r = "Available resources:\n";
-        foreach (callStructure() as $resource) {
-            $rp = str_replace(ROOT_PATH, "", $resource[1]);
-            $r .= "<{$resource[0]}> {$resource[2]} ({$rp}) \n";
-        }
-
-        return "{$r}\nCall list <resource>\n";
-    }
-}
-
-if (function_exists("cli_like") === !1) {
-    function cli_like(bool $tooltip = false, array $argv): string
-    {
-        if ($tooltip) {
-            return "<search_term> Searches resources, functions and classes by name or path.";
-        }
-
-        if ($search = $argv[0] ?? null) {
-            $search = strtolower($search);
-            $matches = [];
-            $seen = [];
-
-            foreach (callStructure() as $c) {
-                $relPath = str_starts_with($c[1], ROOT_PATH)
-                    ? substr($c[1], strlen(ROOT_PATH))
-                    : $c[1];
-
-                if (strpos(strtolower($relPath), $search) !== false) {
-                    $key = "resource:{$relPath}";
-                    if (!isset($seen[$key])) {
-                        $matches[] = "[resource] <{$c[0]}> {$relPath} - {$c[2]}";
-                        $seen[$key] = true;
-                    }
-                }
-            }
-
-            # Search functions
-            foreach (get_defined_functions() as $type => $functions) {
-                foreach ($functions as $function) {
-                    if (strpos(strtolower($function), $search) !== false) {
-                        $key = "function:{$function}";
-                        if (!isset($seen[$key])) {
-                            $source = $type === "user" ? "user" : "internal";
-                            $matches[] = "[function:{$source}] {$function}()";
-                            $seen[$key] = true;
-                        }
-                    }
-                }
-            }
-
-            # Search classes
-            foreach (get_declared_classes() as $class) {
-                if (strpos(strtolower($class), $search) !== false) {
-                    $key = "class:{$class}";
-                    if (!isset($seen[$key])) {
-                        $reflection = new ReflectionClass($class);
-                        $source = $reflection->isInternal()
-                            ? "internal"
-                            : "user";
-                        $modifiers = [];
-                        $reflection->isAbstract() &&
-                            ($modifiers[] = "abstract");
-                        $reflection->isFinal() && ($modifiers[] = "final");
-                        $mod = $modifiers
-                            ? "[" . implode(" ", $modifiers) . "] "
-                            : "";
-                        $matches[] = "[class:{$source}] {$mod}{$class}";
-                        $seen[$key] = true;
-                    }
-                }
-            }
-
-            # Search interfaces
-            foreach (get_declared_interfaces() as $interface) {
-                if (strpos(strtolower($interface), $search) !== false) {
-                    $key = "interface:{$interface}";
-                    if (!isset($seen[$key])) {
-                        $reflection = new ReflectionClass($interface);
-                        $source = $reflection->isInternal()
-                            ? "internal"
-                            : "user";
-                        $matches[] = "[interface:{$source}] {$interface}";
-                        $seen[$key] = true;
-                    }
-                }
-            }
-
-            # Search traits
-            foreach (get_declared_traits() as $trait) {
-                if (strpos(strtolower($trait), $search) !== false) {
-                    $key = "trait:{$trait}";
-                    if (!isset($seen[$key])) {
-                        $reflection = new ReflectionClass($trait);
-                        $source = $reflection->isInternal()
-                            ? "internal"
-                            : "user";
-                        $matches[] = "[trait:{$source}] {$trait}";
-                        $seen[$key] = true;
-                    }
-                }
-            }
-
-            # Search constants with value preview
-            foreach (get_defined_constants(true) as $scope => $constants) {
-                foreach ($constants as $name => $value) {
-                    if (strpos(strtolower($name), $search) !== false) {
-                        $key = "constant:{$name}";
-                        if (!isset($seen[$key])) {
-                            $valuePreview = is_scalar($value)
-                                ? (string) $value
-                                : gettype($value);
-                            if (strlen($valuePreview) > 30) {
-                                $valuePreview =
-                                    substr($valuePreview, 0, 27) . "...";
-                            }
-                            $matches[] = "[constant:{$scope}] {$name} = \"{$valuePreview}\"";
-                            $seen[$key] = true;
-                        }
-                    }
-                }
-            }
-
-            /* sort($matches); */
-
-            if (!empty($matches) && ($c = count($matches))) {
-                $ml = implode("\n", $matches);
-                return "Found {$c} match(es):\n{$ml}\n";
-            }
-            return "No matches found for '{$search}'.\n";
-        }
-        return "E: Missing search term, call like <term>\n";
-    }
-}
-
-if (function_exists("cli_new") === !1) {
-    function cli_new(bool $tooltip = false, array $argv): string
-    {
-        if ($tooltip) {
-            return "<resource> <name> Creates new raw resource with improvised boilerplate.";
-        }
-
-        if (($call = $argv[0] ?? null) && ($name = $argv[1] ?? null)) {
-            foreach (callStructure() as $c) {
-                if ($c[0] === $call) {
-                    $fc = generateBoilerplate($c[1], $name, ROOT_PATH);
-                    $fn = $c[1] . DIRECTORY_SEPARATOR . "{$name}{$fc[1]}.php";
-                    if (!file_exists($fn)) {
-                        $size = file_put_contents($fn, $fc[0]);
-                        return "File created at {$fn} size {$size} bytes.\n";
-                    } else {
-                        return "E: File {$fn} already exists.\n";
-                    }
-                }
-            }
-            return "E: Could not create resource, invalid resource name {$call}.\n";
-        }
-        return "E: Missing argument(s), call new <resource> <name>\n";
+        return "Last {$lines} lines of {$file}:\n\n" .
+            ($content ?: "No content or error reading file\n");
     }
 }
 
@@ -1546,6 +1511,86 @@ if (function_exists("cli_migrate") === !1) {
     }
 }
 
+if (function_exists("cli_new") === !1) {
+    function cli_new(bool $tooltip = false, array $argv): string
+    {
+        if ($tooltip) {
+            return "<resource> <name> Creates new raw resource with improvised boilerplate.";
+        }
+
+        if (($call = $argv[0] ?? null) && ($name = $argv[1] ?? null)) {
+            foreach (callStructure() as $c) {
+                if ($c[0] === $call) {
+                    if (strpos($c[1], "Migration") !== false) {
+                        $timestamp = date("Ymd_His");
+                        $safeName = preg_replace("/[^a-zA-Z0-9_]/", "_", $name);
+                        $migrationName = "{$timestamp}_{$safeName}";
+
+                        $fc = generateBoilerplate($c[1], $safeName, ROOT_PATH);
+                        $fn =
+                            $c[1] .
+                            DIRECTORY_SEPARATOR .
+                            "{$migrationName}{$fc[1]}.php";
+
+                        if (strpos($c[1], "Migration/PHP") !== false) {
+                            $className = str_replace(
+                                ["-", "_"],
+                                "",
+                                ucwords($safeName, "-_"),
+                            );
+                            $content = <<<PHP
+                            <?php declare(strict_types=1);
+
+                            class {$className}PHP
+                            {
+                                public function up(): void
+                                {
+                                    // Migration logic here
+                                }
+
+                                public function down(): void
+                                {
+                                    // Rollback logic here
+                                }
+                            }
+                            PHP;
+
+                            file_put_contents($fn, $content);
+                            $size = filesize($fn);
+                        } else {
+                            $size = file_put_contents($fn, $fc[0]);
+                        }
+
+                        return "Migration file created at {$fn} size {$size} bytes.\n";
+                    } elseif (strpos($c[1], "Public") !== false) {
+                        $ext = strpos($name, ".") !== false ? "" : ".php";
+                        $fn = $c[1] . DIRECTORY_SEPARATOR . $name . $ext;
+                        if (!file_exists($fn)) {
+                            $size = file_put_contents($fn, "\n");
+                            return "File created at {$fn} size {$size} bytes.\n";
+                        } else {
+                            return "E: File {$fn} already exists.\n";
+                        }
+                    } else {
+                        // Regular resource creation
+                        $fc = generateBoilerplate($c[1], $name, ROOT_PATH);
+                        $fn =
+                            $c[1] . DIRECTORY_SEPARATOR . "{$name}{$fc[1]}.php";
+                        if (!file_exists($fn)) {
+                            $size = file_put_contents($fn, $fc[0]);
+                            return "File created at {$fn} size {$size} bytes.\n";
+                        } else {
+                            return "E: File {$fn} already exists.\n";
+                        }
+                    }
+                }
+            }
+            return "E: Could not create resource, invalid resource name {$call}.\n";
+        }
+        return "E: Missing argument(s), call new <resource> <name>\n";
+    }
+}
+
 if (function_exists("cli_serve") === !1) {
     function cli_serve(bool $tooltip = false, array $argv): string
     {
@@ -1580,186 +1625,115 @@ if (function_exists("cli_serve") === !1) {
     }
 }
 
-if (function_exists("cli_log") === !1) {
-    function cli_log(bool $tooltip = false, array $argv): string
+if (function_exists("cli_test") === !1) {
+    function cli_test(bool $tooltip = false, array $argv): string
     {
         if ($tooltip) {
-            return "[action] [options] Manage and view logs. Actions: list, show, clear, tail";
+            return "<type> [filter] Runs tests of specified type with optional filter.";
         }
 
-        $action = $argv[0] ?? "list";
-        $options = array_slice($argv, 1);
+        $type = $argv[0] ?? "Unit"; // Default to Unit tests
+        $filter = $argv[1] ?? "";
 
-        return match ($action) {
-            "list" => listLogs($options),
-            "show" => showLogs($options),
-            "clear" => clearLogs($options),
-            "tail" => tailLogs($options),
-            default
-                => "E: Unknown action. Available: list, show, clear, tail\n",
-        };
-    }
+        $testTypes = ["Unit", "Integration", "Contract", "E2E"];
 
-    function listLogs(array $options): string
-    {
-        $logFiles = getAllLogFiles();
-        $output = "Available Log Files:\n\n";
-
-        $totalSize = 0;
-        if (empty($logFiles)) {
-            $output .= "No files found.\n";
+        if (!in_array($type, $testTypes)) {
+            return "E: Invalid test type. Available: " .
+                implode(", ", $testTypes) .
+                "\n";
         }
 
-        foreach ($logFiles as $log) {
-            $size = number_format($log["size"] / 1024, 2) . " KB";
-            $modified = date("Y-m-d H:i:s", $log["modified"]);
-            $type = str_pad($log["type"], 10);
-            $output .= sprintf(
-                "[%s] %-60s %12s %s\n",
-                $type,
-                $log["path"],
-                $size,
-                $modified,
-            );
-            $totalSize += $log["size"];
+        $testPath = ROOT_PATH . "Test" . DIRECTORY_SEPARATOR . $type;
+
+        if (!is_dir($testPath)) {
+            return "E: Test directory not found: {$testPath}\n";
         }
 
-        $size = number_format($totalSize / (1024 * 1024), 2);
-        $output .= "\nTotal: " . count($logFiles) . " files, {$size} MB\n";
+        $phpFiles = glob($testPath . DIRECTORY_SEPARATOR . "*.php");
 
-        return $output;
-    }
-
-    function showLogs(array $options): string
-    {
-        if (empty($options)) {
-            return "E: Specify log file or type. Usage: log show <file|type> [limit]\n";
+        if (empty($phpFiles)) {
+            return "No {$type} tests found.\n";
         }
 
-        $target = $options[0];
-        $limit = $options[1] ?? 50;
+        $output = "Running {$type} tests...\n";
+        $output .= "\n";
 
-        $logFiles = getAllLogFiles();
-        $selectedLogs = [];
+        $passed = 0;
+        $failed = 0;
+        $total = 0;
 
-        foreach ($logFiles as $log) {
-            if ($log["type"] === $target || $log["path"] === $target) {
-                $selectedLogs[] = $log["path"];
+        foreach ($phpFiles as $testFile) {
+            $fileName = basename($testFile);
+
+            // Apply filter if provided
+            if ($filter && strpos($fileName, $filter) === false) {
+                continue;
             }
-        }
 
-        if (empty($selectedLogs)) {
-            foreach ($logFiles as $log) {
-                if (strpos($log["path"], $target) !== false) {
-                    $selectedLogs[] = $log["path"];
-                }
-            }
-        }
+            $output .= "Test: {$fileName}\n";
 
-        if (empty($selectedLogs)) {
-            return "E: No logs found matching '{$target}'\n";
-        }
+            ob_start();
+            try {
+                include_once $testFile;
 
-        $allEntries = logReadFilesArray($selectedLogs);
-        $limitedEntries = array_slice($allEntries, 0, $limit);
+                $functions = get_defined_functions()["user"];
+                $testFunctions = array_filter(
+                    $functions,
+                    fn($f) => str_starts_with($f, "test_"),
+                );
 
-        $output =
-            "Showing {$limit} of " . count($allEntries) . " log entries:\n";
-
-        foreach ($limitedEntries as $entry) {
-            $timestamp = $entry["timestamp"] ?? "unknown";
-            $type = $entry["type"] ?? "unknown";
-            $message = $entry["message"] ?? "";
-            $function = $entry["function"] ?? "";
-
-            $output .= sprintf(
-                "[%s] %-10s %-20s %s\n",
-                $timestamp,
-                $type,
-                $function,
-                substr($message, 0, 40) . (strlen($message) > 40 ? "..." : ""),
-            );
-
-            if (isset($entry["data"]) && !empty($entry["data"])) {
-                $dataStr = json_encode($entry["data"], JSON_PRETTY_PRINT);
-                $lines = explode("\n", $dataStr);
-                foreach (array_slice($lines, 0, 3) as $line) {
-                    $output .= "  {$line}\n";
-                }
-                if (count($lines) > 3) {
-                    $output .= "  ...\n";
-                }
-            }
-        }
-
-        return $output;
-    }
-
-    function clearLogs(array $options): string
-    {
-        if (empty($options)) {
-            return "E: Specify what to clear. Usage: log clear <file|type|all>\n";
-        }
-
-        $target = $options[0];
-        $logFiles = getAllLogFiles();
-        $cleared = 0;
-        $totalSize = 0;
-
-        if ($target === "all") {
-            foreach ($logFiles as $log) {
-                if (file_exists($log["path"]) && is_writable($log["path"])) {
-                    $size = filesize($log["path"]);
-                    if (file_put_contents($log["path"], "") !== false) {
-                        $cleared++;
-                        $totalSize += $size;
+                foreach ($testFunctions as $testFunc) {
+                    $total++;
+                    try {
+                        $testFunc();
+                        $output .= "\t✓ {$testFunc}()\n";
+                        $passed++;
+                    } catch (Exception $e) {
+                        $output .=
+                            "\t✗ {$testFunc}(): " . $e->getMessage() . "\n";
+                        $failed++;
                     }
                 }
-            }
-            return "Cleared {$cleared} log files, freed " .
-                number_format($totalSize / (1024 * 1024), 2) .
-                " MB\n";
-        }
 
-        foreach ($logFiles as $log) {
-            if (
-                ($log["type"] === $target || $log["path"] === $target) &&
-                file_exists($log["path"]) &&
-                is_writable($log["path"])
-            ) {
-                $size = filesize($log["path"]);
-                if (file_put_contents($log["path"], "") !== false) {
-                    $cleared++;
-                    $totalSize += $size;
+                $classes = get_declared_classes();
+                foreach ($classes as $class) {
+                    if (
+                        str_ends_with($class, "Test") ||
+                        str_ends_with($class, "TestCase")
+                    ) {
+                        $reflection = new ReflectionClass($class);
+                        if ($reflection->hasMethod("run")) {
+                            $total++;
+                            try {
+                                $instance = $reflection->newInstance();
+                                $instance->run();
+                                $output .= "\t✓ {$class}::run()\n";
+                                $passed++;
+                            } catch (Exception $e) {
+                                $output .=
+                                    "\t✗ {$class}::run(): " .
+                                    $e->getMessage() .
+                                    "\n";
+                                $failed++;
+                            }
+                        }
+                    }
                 }
+            } catch (Exception $e) {
+                $output .= "\t✗ Error loading test: " . $e->getMessage() . "\n";
+                $failed++;
             }
+            ob_end_clean();
         }
 
-        if ($cleared > 0) {
-            $size = number_format($totalSize / 1024, 2);
-            return "Cleared {$cleared} log files, freed {$size} KB\n";
+        $output .= "\n";
+        $output .= "Results: {$passed}/{$total} passed, {$failed} failed\n";
+
+        if ($failed > 0) {
+            http_response_code(1); // Non-zero exit code for CLI
         }
 
-        return "No logs cleared. Check file permissions or path.\n";
-    }
-
-    function tailLogs(array $options): string
-    {
-        if (empty($options)) {
-            return "E: Specify log file. Usage: log tail <file> [lines]\n";
-        }
-
-        $file = $options[0];
-        $lines = $options[1] ?? 10;
-
-        if (!file_exists($file)) {
-            return "E: File not found: {$file}\n";
-        }
-
-        $content = shell_exec("tail -n {$lines} " . escapeshellarg($file));
-
-        return "Last {$lines} lines of {$file}:\n\n" .
-            ($content ?: "No content or error reading file\n");
+        return $output;
     }
 }
 
