@@ -502,6 +502,32 @@ if (function_exists("generateBoilerplate") === !1) {
     }
 }
 
+if (function_exists("cli_dump") === !1) {
+    function cli_dump(bool $tooltip = false, array $argv): string
+    {
+        if ($tooltip) {
+            return "<var> Dumps a variable's value.";
+        }
+
+        if (empty($argv)) {
+            return "E: Usage: dump <variable>\n";
+        }
+
+        $input = $argv[0];
+        $varName = ltrim($input, '$');
+
+        if (!isset($GLOBALS[$varName])) {
+            return "E: Variable \${$varName} not found\n";
+        }
+
+        $value = $GLOBALS[$varName];
+
+        ob_start();
+        var_dump($value);
+        return ob_get_clean();
+    }
+}
+
 if (function_exists("cli_env") === !1) {
     function cli_env(bool $tooltip = false, array $argv): string
     {
