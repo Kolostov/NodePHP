@@ -1817,5 +1817,6 @@ if (PHP_SAPI === "cli" && $LOCAL_PATH === ROOT_PATH) {
         ) .
         "]\n\n";
 
+    unset($ROOT_PATHS);
     die("{$r}\n");
 }
