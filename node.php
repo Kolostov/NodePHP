@@ -259,11 +259,24 @@ try {
                 $value = $_ENV[$prefixedKey] ?? getenv($prefixedKey);
 
                 if ($value !== null && $value !== false) {
+                    if (strtolower($value) === "true") {
+                        return true;
+                    }
+                    if (strtolower($value) === "false") {
+                        return false;
+                    }
+                    if (strtolower($value) === "null") {
+                        return null;
+                    }
+                    if (is_numeric($value)) {
+                        return strpos($value, ".") !== false
+                            ? (float) $value
+                            : (int) $value;
+                    }
                     return $value;
                 }
 
-                return $_ENV[$key] ??
-                    ($_SERVER[$key] ?? (getenv($key) ?? $default));
+                return $default;
             }
         }
 
