@@ -207,6 +207,7 @@ try {
                 "Contract" => "Interface compliance tests",
                 "E2E" => "Full end-to-end request/response tests",
             ],
+            "Depricated" => "Files that are considered depricated.",
             "Log" => [
                 "Internal" => "Application runtime logs",
                 "Access" => "HTTP request logs",
@@ -361,7 +362,7 @@ if (function_exists("includeStructure") === !1) {
                     return "";
                 }
 
-                $exclude = ["Git", "Test", "Public", "Log"];
+                $exclude = ["Git", "Test", "Public", "Log", "Depricated"];
                 if (PHP_SAPI !== "cli") {
                     $exclude = [...$exclude, ["Migration"]];
                 }
@@ -499,6 +500,62 @@ if (function_exists("generateBoilerplate") === !1) {
             ,
             $leaf,
         ];
+    }
+}
+
+if (function_exists("cli_deprecate") === !1) {
+    function cli_deprecate(bool $tooltip = false, array $argv): string
+    {
+        if ($tooltip) {
+            return "<resource> <name> Moves file to Deprecated directory with timestamp.";
+        }
+
+        if (($call = $argv[0] ?? null) && ($name = $argv[1] ?? null)) {
+            foreach (callStructure() as $c) {
+                if ($c[0] === $call) {
+                    $path = $c[1];
+
+                    $patterns = [
+                        "{$path}" . DIRECTORY_SEPARATOR . "{$name}.php",
+                        "{$path}" . DIRECTORY_SEPARATOR . "{$name}.*.php",
+                        "{$path}" . DIRECTORY_SEPARATOR . "*{$name}*.php",
+                    ];
+
+                    $foundFile = null;
+                    foreach ($patterns as $pattern) {
+                        $matches = glob($pattern);
+                        if (!empty($matches)) {
+                            $foundFile = $matches[0];
+                            break;
+                        }
+                    }
+
+                    if (!$foundFile) {
+                        return "E: File not found for resource '{$call}' with name '{$name}'\n";
+                    }
+
+                    $timestamp = date("Ymd_His");
+                    $fileName = basename($foundFile, ".php");
+                    $rPath = str_replace(ROOT_PATH, "", $path);
+
+                    $deprecatedDir = ROOT_PATH . "Deprecated" . D . $rPath . D;
+                    $deprecatedFile = "{$deprecatedDir}{$fileName}_{$timestamp}.php";
+
+                    if (!is_dir($deprecatedDir)) {
+                        mkdir($deprecatedDir, 0777, true);
+                    }
+
+                    if (copy($foundFile, $deprecatedFile)) {
+                        $size = filesize($foundFile);
+                        return "Deprecated: {$foundFile} → {$deprecatedFile} ({$size} bytes)\n";
+                    } else {
+                        return "E: Failed to copy file to deprecated directory\n";
+                    }
+                }
+            }
+            return "E: Invalid resource name '{$call}'\n";
+        }
+        return "E: Missing arguments. Usage: deprecate <resource> <name>\n";
     }
 }
 
