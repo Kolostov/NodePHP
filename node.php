@@ -880,10 +880,7 @@ if (function_exists("cli_like") === !1) {
                             $valuePreview = is_scalar($value)
                                 ? (string) $value
                                 : gettype($value);
-                            if (strlen($valuePreview) > 30) {
-                                $valuePreview =
-                                    substr($valuePreview, 0, 27) . "...";
-                            }
+
                             $matches[] = "[constant:{$scope}] {$name} = \"{$valuePreview}\"";
                             $seen[$key] = true;
                         }
