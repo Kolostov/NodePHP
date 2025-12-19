@@ -1,0 +1,6 @@
+# This is the node.php .gitignore
+# it ignores everything except node.php and it's meta files.
+*
+!node.php
+!README.md
+!.gitignore
