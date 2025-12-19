@@ -7,8 +7,41 @@ if (defined("NODE_NAME") === !1) {
     error_reporting(E_ALL);
     ini_set("display_errors", !0);
     $TIME_START = microtime(true);
+    $ROOT_PATHS = [];
 
     define("ROOT_PATH", $LOCAL_PATH);
+}
+
+$ROOT_PATHS[] = $LOCAL_PATH;
+
+if (!function_exists("f")) {
+    /*
+     * @param string $fn Complete path to file.
+     * @param string $critical Die if file does not exist.
+     *
+     * @return string Real path.
+     */
+    function f(string $fn, bool $critical = true): string|null
+    {
+        if (file_exists($fn)) {
+            return $fn;
+        }
+
+        global $ROOT_PATHS;
+
+        $fn = ltrim(str_replace(ROOT_PATH, "", $fn), DIRECTORY_SEPARATOR);
+
+        foreach ($ROOT_PATHS as $path) {
+            $sfn = "{$path}{$fn}";
+            if (file_exists($sfn)) {
+                return $sfn;
+            }
+        }
+
+        return $critical
+            ? die("Error: function f() cannot find file: {$fn}")
+            : null;
+    }
 }
 
 $NODE_STRUCTURE_DEFINITIONS = "{$LOCAL_PATH}node.json";
@@ -206,6 +239,23 @@ try {
                 unset($line, $key, $value);
             }
             unset($lines);
+        }
+
+        if (function_exists("env") === !1) {
+            function env(string $key, mixed $default = null): mixed
+            {
+                $key = strtoupper(trim($key));
+
+                $prefixedKey = NODE_NAME . ":{$key}";
+                $value = $_ENV[$prefixedKey] ?? getenv($prefixedKey);
+
+                if ($value !== null && $value !== false) {
+                    return $value;
+                }
+
+                return $_ENV[$key] ??
+                    ($_SERVER[$key] ?? (getenv($key) ?? $default));
+            }
         }
 
         $NODE_REQUIRE = $node["require"] ?? [];
@@ -823,12 +873,13 @@ if (function_exists("cli_like") === !1) {
     function cli_like(bool $tooltip = false, array $argv): string
     {
         if ($tooltip) {
-            return "<search_term> Searches resources by name or path.";
+            return "<search_term> Searches resources, functions and classes by name or path.";
         }
 
         if ($search = $argv[0] ?? null) {
             $search = strtolower($search);
             $matches = [];
+            $seen = [];
 
             foreach (callStructure() as $c) {
                 $relPath = str_starts_with($c[1], ROOT_PATH)
@@ -836,9 +887,101 @@ if (function_exists("cli_like") === !1) {
                     : $c[1];
 
                 if (strpos(strtolower($relPath), $search) !== false) {
-                    $matches[] = "<{$c[0]}> {$relPath} - {$c[2]}";
+                    $key = "resource:{$relPath}";
+                    if (!isset($seen[$key])) {
+                        $matches[] = "[resource] <{$c[0]}> {$relPath} - {$c[2]}";
+                        $seen[$key] = true;
+                    }
                 }
             }
+
+            # Search functions
+            foreach (get_defined_functions() as $type => $functions) {
+                foreach ($functions as $function) {
+                    if (strpos(strtolower($function), $search) !== false) {
+                        $key = "function:{$function}";
+                        if (!isset($seen[$key])) {
+                            $source = $type === "user" ? "user" : "internal";
+                            $matches[] = "[function:{$source}] {$function}()";
+                            $seen[$key] = true;
+                        }
+                    }
+                }
+            }
+
+            # Search classes
+            foreach (get_declared_classes() as $class) {
+                if (strpos(strtolower($class), $search) !== false) {
+                    $key = "class:{$class}";
+                    if (!isset($seen[$key])) {
+                        $reflection = new ReflectionClass($class);
+                        $source = $reflection->isInternal()
+                            ? "internal"
+                            : "user";
+                        $modifiers = [];
+                        $reflection->isAbstract() &&
+                            ($modifiers[] = "abstract");
+                        $reflection->isFinal() && ($modifiers[] = "final");
+                        $mod = $modifiers
+                            ? "[" . implode(" ", $modifiers) . "] "
+                            : "";
+                        $matches[] = "[class:{$source}] {$mod}{$class}";
+                        $seen[$key] = true;
+                    }
+                }
+            }
+
+            # Search interfaces
+            foreach (get_declared_interfaces() as $interface) {
+                if (strpos(strtolower($interface), $search) !== false) {
+                    $key = "interface:{$interface}";
+                    if (!isset($seen[$key])) {
+                        $reflection = new ReflectionClass($interface);
+                        $source = $reflection->isInternal()
+                            ? "internal"
+                            : "user";
+                        $matches[] = "[interface:{$source}] {$interface}";
+                        $seen[$key] = true;
+                    }
+                }
+            }
+
+            # Search traits
+            foreach (get_declared_traits() as $trait) {
+                if (strpos(strtolower($trait), $search) !== false) {
+                    $key = "trait:{$trait}";
+                    if (!isset($seen[$key])) {
+                        $reflection = new ReflectionClass($trait);
+                        $source = $reflection->isInternal()
+                            ? "internal"
+                            : "user";
+                        $matches[] = "[trait:{$source}] {$trait}";
+                        $seen[$key] = true;
+                    }
+                }
+            }
+
+            # Search constants with value preview
+            foreach (get_defined_constants(true) as $scope => $constants) {
+                foreach ($constants as $name => $value) {
+                    if (strpos(strtolower($name), $search) !== false) {
+                        $key = "constant:{$name}";
+                        if (!isset($seen[$key])) {
+                            $valuePreview = is_scalar($value)
+                                ? (string) $value
+                                : gettype($value);
+                            if (strlen($valuePreview) > 30) {
+                                $valuePreview =
+                                    substr($valuePreview, 0, 27) . "...";
+                            }
+                            $matches[] = "[constant:{$scope}] {$name} = \"{$valuePreview}\"";
+                            $seen[$key] = true;
+                        }
+                    }
+                }
+            }
+
+            /* sort($matches); */
 
             if (!empty($matches) && ($c = count($matches))) {
                 $ml = implode("\n", $matches);
