@@ -514,14 +514,27 @@ if (function_exists("cli_backup") === !1) {
             return "[name] Creates a backup zip of the node (excludes Log, Backup folders).";
         }
 
-        if (!class_exists("ZipArchive")) {
-            return "E: Zip extension not loaded. Install: sudo apt-get install php-zip\n";
-        }
-
         $backupName = $argv[0] ?? date("Ymd");
         $backupDir = ROOT_PATH . "Backup" . D;
 
         $zipName = "{$backupDir}{$backupName}.zip";
+
+        $hasZip = false;
+        if (extension_loaded("zip")) {
+            $hasZip = true;
+        } elseif (
+            function_exists("class_exists") &&
+            class_exists("ZipArchive")
+        ) {
+            $hasZip = true;
+        } elseif (function_exists("zip_open")) {
+            $hasZip = true;
+        }
+
+        if (!$hasZip) {
+            // Try to create tar.gz as fallback
+            return createTarBackup($backupDir, $backupName);
+        }
 
         if (file_exists($zipName)) {
             return "E: Backup '{$backupName}.zip' already exists\n";
@@ -576,6 +589,68 @@ if (function_exists("cli_backup") === !1) {
         return "Backup created: {$zipName} ({$added} files, " .
             number_format($size / 1024 / 1024, 2) .
             " MB)\n";
+    }
+
+    function createTarBackup(string $backupDir, string $backupName): string
+    {
+        $tarName = "{$backupDir}{$backupName}.tar.gz";
+
+        if (file_exists($tarName)) {
+            return "E: Backup '{$backupName}.tar.gz' already exists\n";
+        }
+
+        // Create exclude file for tar
+        $excludeFile = "{$backupDir}exclude.txt";
+        $excludes = ["Backup", "Log", "Deprecated", "vendor", "node_modules"];
+
+        file_put_contents($excludeFile, implode("\n", $excludes));
+
+        $currentDir = getcwd();
+        chdir(ROOT_PATH);
+
+        $cmd =
+            "tar -czf " .
+            escapeshellarg($tarName) .
+            " --exclude-from=" .
+            escapeshellarg($excludeFile) .
+            " . 2>&1";
+
+        exec($cmd, $output, $returnCode);
+
+        chdir($currentDir);
+        unlink($excludeFile);
+
+        if ($returnCode === 0) {
+            $size = filesize($tarName);
+            $fileCount = countFilesInTar($tarName);
+
+            return "Backup created (tar.gz): {$tarName} ({$fileCount} files, " .
+                number_format($size / 1024 / 1024, 2) .
+                " MB)\n" .
+                "Note: Using tar.gz as PHP zip extension is not available.\n";
+        }
+
+        return "E: Failed to create backup. Try installing:\n" .
+            "  Debian/Ubuntu: sudo apt-get install php8.5-zip\n" .
+            "  Or enable in php.ini: extension=zip.so\n" .
+            "  Error: " .
+            implode("\n", $output) .
+            "\n";
+    }
+
+    function countFilesInTar(string $tarFile): int
+    {
+        exec(
+            "tar -tzf " . escapeshellarg($tarFile) . " 2>/dev/null | wc -l",
+            $output,
+            $returnCode,
+        );
+
+        if ($returnCode === 0 && isset($output[0]) && is_numeric($output[0])) {
+            return (int) $output[0];
+        }
+
+        return 0;
     }
 }
 
@@ -1364,6 +1439,159 @@ if (function_exists("cli_log") === !1) {
 
         return "Last {$lines} lines of {$file}:\n\n" .
             ($content ?: "No content or error reading file\n");
+    }
+}
+
+if (function_exists("cli_make") === !1) {
+    function cli_make(bool $tooltip = false, array $argv): string
+    {
+        if ($tooltip) {
+            return "<gitrepo> <foldername> Creates a new node from git repositories.";
+        }
+
+        if (count($argv) < 2) {
+            return "E: Usage: make <gitrepo> <foldername>\nExample: make Kolostov/RouterNode Router\n";
+        }
+
+        $gitRepo = $argv[0];
+        $folderName = $argv[1];
+        $parentDir = dirname(ROOT_PATH) . D;
+        $newNodePath = $parentDir . $folderName . D;
+
+        if (file_exists($newNodePath)) {
+            return "E: Directory already exists: {$newNodePath}\n";
+        }
+
+        $gitUrls = getGitUrls();
+        if (!$gitUrls["node"]) {
+            return "E: Cannot determine node git URL\n";
+        }
+
+        $nodeGitUrl = $gitUrls["node"];
+        $projectGitUrl = $gitUrls["base"]
+            ? $gitUrls["base"] . $gitRepo . ".git"
+            : "https://github.com/" . $gitRepo . ".git";
+
+        $output = "Creating new node '{$folderName}'...\n";
+        $output .= "Node Git: {$nodeGitUrl}\n";
+        $output .= "Project Git: {$projectGitUrl}\n\n";
+
+        mkdir($newNodePath, 0777, true);
+        mkdir("{$newNodePath}Git", 0777, true);
+        mkdir("{$newNodePath}Git" . D . "Node", 0777, true);
+        mkdir("{$newNodePath}Git" . D . "Project", 0777, true);
+
+        $originalDir = getcwd();
+
+        try {
+            chdir("{$newNodePath}Git" . D . "Node");
+            exec("git clone {$nodeGitUrl} . 2>&1", $nodeOutput, $nodeCode);
+
+            if ($nodeCode !== 0) {
+                throw new Exception(
+                    "Failed to clone node: " . implode("\n", $nodeOutput),
+                );
+            }
+
+            $output .= "✓ Node cloned\n";
+
+            chdir("{$newNodePath}Git" . D . "Project");
+            exec(
+                "git clone {$projectGitUrl} . 2>&1",
+                $projectOutput,
+                $projectCode,
+            );
+
+            if ($projectCode !== 0) {
+                throw new Exception(
+                    "Failed to clone project: " . implode("\n", $projectOutput),
+                );
+            }
+
+            $output .= "✓ Project cloned\n";
+
+            chdir($newNodePath);
+
+            $nodeFile = $newNodePath . "Git" . D . "Node" . D . "node.php";
+            $symlink = $newNodePath . "Git" . D . "Node" . D . "node";
+
+            if (file_exists($nodeFile)) {
+                rename($nodeFile, "{$newNodePath}node.php");
+                $output .= "✓ node.php moved to root\n";
+            }
+
+            if (file_exists($symlink)) {
+                rename($symlink, "{$newNodePath}node");
+                $output .= "✓ node symlink moved to root\n";
+            }
+
+            chdir($newNodePath);
+            exec("php node git Node 2>&1", $gitOutput, $gitCode);
+
+            if ($gitCode === 0) {
+                $output .= "✓ Node set to Node mode\n";
+            } else {
+                $output .=
+                    "Note: Could not set Node mode (run manually: php node git Node)\n";
+            }
+
+            $nodeConfig = [
+                "name" => $folderName,
+                "run" => null,
+                "require" => [],
+            ];
+
+            file_put_contents(
+                "{$newNodePath}node.json",
+                json_encode(
+                    $nodeConfig,
+                    JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES,
+                ),
+            );
+
+            $output .= "✓ node.json created\n";
+        } catch (Exception $e) {
+            chdir($originalDir);
+            if (is_dir($newNodePath)) {
+                exec("rm -rf " . escapeshellarg($newNodePath));
+            }
+            return "E: " . $e->getMessage() . "\n";
+        }
+
+        chdir($originalDir);
+
+        $output .= "\nNew node created at: {$newNodePath}\n";
+        $output .= "To enter: cd " . escapeshellarg($folderName) . "\n";
+        $output .= "To start: php node serve\n";
+
+        return $output;
+    }
+
+    function getGitUrls(): array
+    {
+        $result = ["node" => "", "base" => null];
+
+        $gConf = ROOT_PATH . ".git" . D . "config";
+        if (file_exists($gConf)) {
+            $cfg = file_get_contents($gConf);
+            $result["node"] = preg_match("/url\s*=\s*(.+)/", $cfg, $mcs)
+                ? trim($mcs[1])
+                : null;
+        } else {
+            $nConf = ROOT_PATH . "Git" . D . "Node" . D . ".git" . D . "config";
+            if (file_exists($nConf)) {
+                $cfg = file_get_contents($nConf);
+                $result["node"] = preg_match("/url\s*=\s*(.+)/", $cfg, $mcs)
+                    ? trim($mcs[1])
+                    : null;
+            }
+        }
+
+        $result["base"] = !empty($result["node"])
+            ? str_replace("Kolostov/NodePHP.git", "", $result["node"])
+            : null;
+
+        return $result;
     }
 }
 
