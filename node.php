@@ -1,4 +1,4 @@
-<?php /* /node.php */ declare(strict_types=1);
+<?php declare(strict_types=1);
 
 $LOCAL_PATH = realpath(__DIR__) . DIRECTORY_SEPARATOR;
 
@@ -18,6 +18,7 @@ if (defined("NODE_NAME") === !1) {
 
 $ROOT_PATHS[] = $LOCAL_PATH;
 
+# f begin
 if (!function_exists("f")) {
     /*
      * @param string $fn Complete path to file.
@@ -47,7 +48,9 @@ if (!function_exists("f")) {
             : null;
     }
 }
+# f end
 
+# node_structure begin
 $NODE_STRUCTURE_DEFINITIONS = "{$LOCAL_PATH}node.json";
 
 try {
@@ -291,7 +294,9 @@ try {
 
     throw new RuntimeException($msg, 0, $e);
 }
+# node_structure end
 
+# walk_structure begin
 if (function_exists("walkStructure") === !1) {
     function walkStructure(
         array $array,
@@ -324,7 +329,9 @@ if (function_exists("walkStructure") === !1) {
         return array_filter($r, fn($x) => !empty($x));
     }
 }
+# walk_structure end
 
+# deploy_structure begin
 if (function_exists("deployStructure") === !1) {
     function deployStructure(?array $NODE_STRUCTURE = null): void
     {
@@ -343,13 +350,17 @@ if (function_exists("deployStructure") === !1) {
     }
     deployStructure($NODE_STRUCTURE); # Only deploy for main entrypoint node.
 }
+# deploy_structure end
 
+# vendor_autoload begin
 $LOCAL_VENDOR = "{$LOCAL_PATH}vendor" . D . "autoload.php";
 if (file_exists($LOCAL_VENDOR)) {
     include_once $LOCAL_VENDOR;
 }
 unset($LOCAL_VENDOR);
+# vendor_autoload end
 
+# include_structure begin
 if (function_exists("includeStructure") === !1) {
     function includeStructure(
         array $NODE_STRUCTURE,
@@ -408,7 +419,9 @@ if (function_exists("includeStructure") === !1) {
         }
     }
 }
+# include_structure end
 
+# call_structure begin
 if (function_exists("callStructure") === !1) {
     function callStructure(): array
     {
@@ -443,7 +456,9 @@ if (function_exists("callStructure") === !1) {
         );
     }
 }
+# call_structure end
 
+# generate_boilerplate begin
 if (function_exists("generateBoilerplate") === !1) {
     function generateBoilerplate(
         string $call,
@@ -504,7 +519,9 @@ if (function_exists("generateBoilerplate") === !1) {
         ];
     }
 }
+# generate_boilerplate end
 
+# cli_backup begin
 if (function_exists("cli_backup") === !1) {
     function cli_backup(bool $tooltip = false, array $argv): string
     {
@@ -651,7 +668,9 @@ if (function_exists("cli_backup") === !1) {
         return 0;
     }
 }
+# cli_backup end
 
+# cli_deprecate begin
 if (function_exists("cli_deprecate") === !1) {
     function cli_deprecate(bool $tooltip = false, array $argv): string
     {
@@ -707,7 +726,9 @@ if (function_exists("cli_deprecate") === !1) {
         return "E: Missing arguments. Usage: deprecate <resource> <name>\n";
     }
 }
+# cli_deprecate end
 
+# cli_dump begin
 if (function_exists("cli_dump") === !1) {
     function cli_dump(bool $tooltip = false, array $argv): string
     {
@@ -733,7 +754,9 @@ if (function_exists("cli_dump") === !1) {
         return ob_get_clean();
     }
 }
+# cli_dump end
 
+# cli_env begin
 if (function_exists("cli_env") === !1) {
     function cli_env(bool $tooltip = false, array $argv): string
     {
@@ -816,7 +839,9 @@ if (function_exists("cli_env") === !1) {
         }
     }
 }
+# cli_env end
 
+# cli_git begin
 if (function_exists("cli_git") === !1) {
     function cli_git(bool $tooltip = false, array $argv): string
     {
@@ -884,7 +909,9 @@ if (function_exists("cli_git") === !1) {
         return "{$r}\nGit now targeting {$target}\n";
     }
 }
+# cli_git end
 
+# cli_help begin
 if (function_exists("cli_help") === !1) {
     function cli_help(bool $tooltip = false, array $argv): string
     {
@@ -903,7 +930,9 @@ if (function_exists("cli_help") === !1) {
             "LogTypes: [Internal, Access, Audit, Error]\n";
     }
 }
+# cli_help end
 
+# cli_info begin
 if (function_exists("cli_info") === !1) {
     function cli_info(bool $tooltip = false, array $argv): string
     {
@@ -927,7 +956,9 @@ if (function_exists("cli_info") === !1) {
         return implode("\n", $info) . "\n";
     }
 }
+# cli_info end
 
+# cli_like begin
 if (function_exists("cli_like") === !1) {
     function cli_like(bool $tooltip = false, array $argv): string
     {
@@ -1048,7 +1079,9 @@ if (function_exists("cli_like") === !1) {
         return "E: Missing search term, call like <term>\n";
     }
 }
+# cli_like end
 
+# cli_list begin
 if (function_exists("cli_list") === !1) {
     function cli_list(bool $tooltip = false, array $argv): string
     {
@@ -1083,7 +1116,9 @@ if (function_exists("cli_list") === !1) {
         return "{$r}\nCall list <resource>\n";
     }
 }
+# cli_list end
 
+# r begin
 if (!function_exists("r")) {
     function r(
         string $logMessage,
@@ -1144,7 +1179,9 @@ if (!function_exists("r")) {
         return $return;
     }
 }
+# r end
 
+# log_read_file begin
 if (!function_exists("logReadFile")) {
     function logReadFile(string $path): array
     {
@@ -1173,7 +1210,9 @@ if (!function_exists("logReadFile")) {
         return $logs;
     }
 }
+# log_read_file end
 
+# log_read_files_array begin
 if (!function_exists("logReadFilesArray")) {
     function logReadFilesArray(array $arrayOfPathsToLogFiles): array
     {
@@ -1196,7 +1235,9 @@ if (!function_exists("logReadFilesArray")) {
         return $allLogs;
     }
 }
+# log_read_files_array end
 
+# get_all_log_files begin
 if (!function_exists("getAllLogFiles")) {
     function getAllLogFiles(): array
     {
@@ -1248,7 +1289,9 @@ if (!function_exists("getAllLogFiles")) {
         return $logFiles;
     }
 }
+# get_all_log_files end
 
+# cli_log begin
 if (function_exists("cli_log") === !1) {
     function cli_log(bool $tooltip = false, array $argv): string
     {
@@ -1439,7 +1482,9 @@ if (function_exists("cli_log") === !1) {
             ($content ?: "No content or error reading file\n");
     }
 }
+# cli_log end
 
+# cli_make begin
 if (function_exists("cli_make") === !1) {
     function cli_make(bool $tooltip = false, array $argv): string
     {
@@ -1468,7 +1513,7 @@ if (function_exists("cli_make") === !1) {
         $nodeGitUrl = $gitUrls["node"];
         $projectGitUrl = $gitUrls["base"]
             ? $gitUrls["base"] . $gitRepo . ".git"
-            : "https://github.com/" . $gitRepo . ".git";
+            : "https://github.com/{$gitRepo}.git";
 
         $output = "Creating new node '{$folderName}'...\n";
         $output .= "Node Git: {$nodeGitUrl}\n";
@@ -1604,7 +1649,9 @@ if (function_exists("cli_make") === !1) {
         return $result;
     }
 }
+# cli_make end
 
+# cli_migrate begin
 if (function_exists("cli_migrate") === !1) {
     function cli_migrate(bool $tooltip = false, array $argv): string
     {
@@ -1933,7 +1980,9 @@ if (function_exists("cli_migrate") === !1) {
         }
     }
 }
+# cli_migrate end
 
+# cli_new begin
 if (function_exists("cli_new") === !1) {
     function cli_new(bool $tooltip = false, array $argv): string
     {
@@ -2009,7 +2058,9 @@ if (function_exists("cli_new") === !1) {
         return "E: Missing argument(s), call new <resource> <name>\n";
     }
 }
+# cli_new end
 
+# cli_serve begin
 if (function_exists("cli_serve") === !1) {
     function cli_serve(bool $tooltip = false, array $argv): string
     {
@@ -2043,7 +2094,9 @@ if (function_exists("cli_serve") === !1) {
         return $output;
     }
 }
+# cli_serve end
 
+# cli_test begin
 if (function_exists("cli_test") === !1) {
     function cli_test(bool $tooltip = false, array $argv): string
     {
@@ -2084,7 +2137,6 @@ if (function_exists("cli_test") === !1) {
         foreach ($phpFiles as $testFile) {
             $fileName = basename($testFile);
 
-            // Apply filter if provided
             if ($filter && strpos($fileName, $filter) === false) {
                 continue;
             }
@@ -2149,17 +2201,153 @@ if (function_exists("cli_test") === !1) {
         $output .= "Results: {$passed}/{$total} passed, {$failed} failed\n";
 
         if ($failed > 0) {
-            http_response_code(1); // Non-zero exit code for CLI
+            http_response_code(1);
         }
 
         return $output;
     }
 }
+# cli_test end
+
+# cli_wrap begin
+if (function_exists("cli_wrap") === !1) {
+    function cli_wrap(bool $tooltip = false, array $argv): string
+    {
+        if ($tooltip) {
+            return "[open|close] Wraps/unwraps node.php into separate files by sections.";
+        }
+
+        $action = $argv[0] ?? "";
+
+        return match ($action) {
+            "open" => wrapOpen(),
+            "close" => wrapClose(),
+            default => "E: Usage: wrap <open|close>\n",
+        };
+    }
+
+    function wrapOpen(): string
+    {
+        $nodeFile = ROOT_PATH . "node.php";
+
+        if (!file_exists($nodeFile)) {
+            return "E: node.php not found\n";
+        }
+
+        $content = file_get_contents($nodeFile);
+
+        if (
+            !preg_match_all(
+                '/#\s*([a-z_]+)\s+begin\s*\n(.*?)\n#\s*\1\s+end/s',
+                $content,
+                $matches,
+                PREG_SET_ORDER,
+            )
+        ) {
+            return "E: No wrap sections found in node.php\n";
+        }
+
+        $sections = [];
+        foreach ($matches as $match) {
+            $sectionName = $match[1];
+            $sectionContent = $match[2];
+
+            if (strpos(trim($sectionContent), "include_once") === 0) {
+                continue;
+            }
+
+            $sectionFile = ROOT_PATH . "node.{$sectionName}.php";
+            $includeLine = "include_once \"{\$LOCAL_PATH}node.{$sectionName}.php\";";
+
+            file_put_contents($sectionFile, "<?php\n\n{$sectionContent}");
+
+            $replacement = "# {$sectionName} begin\n{$includeLine}\n# {$sectionName} end";
+            $content = str_replace($match[0], $replacement, $content);
+
+            $sections[] = $sectionName;
+        }
+
+        if (empty($sections)) {
+            return "✓ node.php is already wrapped\n";
+        }
+
+        file_put_contents($nodeFile, $content);
+
+        return "✓ Wrapped " .
+            count($sections) .
+            " sections: " .
+            implode(", ", $sections) .
+            "\n";
+    }
+
+    function wrapClose(): string
+    {
+        $nodeFile = ROOT_PATH . "node.php";
+
+        if (!file_exists($nodeFile)) {
+            return "E: node.php not found\n";
+        }
+
+        $content = file_get_contents($nodeFile);
+
+        if (
+            !preg_match_all(
+                '/#\s*([a-z_]+)\s+begin\s*\ninclude_once\s+["\'][^"\']*node\.\1\.php["\'];\s*\n#\s*\1\s+end/s',
+                $content,
+                $matches,
+                PREG_SET_ORDER,
+            )
+        ) {
+            return "E: No wrapped sections found in node.php\n";
+        }
+
+        $sections = [];
+        foreach ($matches as $match) {
+            $sectionName = $match[1];
+            $sectionFile = ROOT_PATH . "node.{$sectionName}.php";
+
+            if (!file_exists($sectionFile)) {
+                continue;
+            }
+
+            $sectionContent = file_get_contents($sectionFile);
+            $sectionContent = preg_replace(
+                '/^<\?php\s*\n?/',
+                "",
+                $sectionContent,
+            );
+            $sectionContent = rtrim($sectionContent);
+
+            $replacement = "# {$sectionName} begin\n{$sectionContent}\n# {$sectionName} end";
+            $content = str_replace($match[0], $replacement, $content);
+
+            unlink($sectionFile);
+
+            $sections[] = $sectionName;
+        }
+
+        if (empty($sections)) {
+            return "✓ node.php is already unwrapped\n";
+        }
+
+        file_put_contents($nodeFile, $content);
+
+        return "✓ Unwrapped " .
+            count($sections) .
+            " sections: " .
+            implode(", ", $sections) .
+            "\n";
+    }
+}
+# cli_wrap end
 
 # Include this node files and if $NODE_REQUIRE is not empty do subincludes.
 includeStructure($NODE_STRUCTURE, $LOCAL_PATH, $NODE_REQUIRE);
+
+# Free memory
 unset($NODE_STRUCTURE, $NODE_REQUIRE);
 
+# execute_run begin
 if (!function_exists("executeRun")) {
     function executeRun(string $entry): void
     {
@@ -2222,6 +2410,7 @@ if (!function_exists("executeRun")) {
         die("Application entry point configuration error [node.json -> run].");
     }
 }
+# execute_run end
 
 if ($LOCAL_PATH === ROOT_PATH) {
     # Run all included nodes by inclusion order.
