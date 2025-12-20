@@ -2235,44 +2235,103 @@ if (function_exists("cli_wrap") === !1) {
         }
 
         $content = file_get_contents($nodeFile);
-
-        if (
-            !preg_match_all(
-                '/#\s*([a-z_]+)\s+begin\s*\n(.*?)\n#\s*\1\s+end/s',
-                $content,
-                $matches,
-                PREG_SET_ORDER,
-            )
-        ) {
-            return "E: No wrap sections found in node.php\n";
-        }
-
+        $lines = explode("\n", $content);
+        $newLines = [];
         $sections = [];
-        foreach ($matches as $match) {
-            $sectionName = $match[1];
-            $sectionContent = $match[2];
+        $i = 0;
+        $n = count($lines);
 
-            if (strpos(trim($sectionContent), "include_once") === 0) {
-                continue;
+        while ($i < $n) {
+            $line = $lines[$i];
+
+            // Look for "# section begin"
+            if (
+                preg_match(
+                    '/^(\s*)#\s*([a-z_]+)\s+begin\s*$/',
+                    $line,
+                    $beginMatch,
+                )
+            ) {
+                $markerIndent = $beginMatch[1]; // Indentation of the marker itself
+                $sectionName = $beginMatch[2];
+                $startIndex = $i;
+                $sectionLines = [];
+
+                // Find matching end
+                $j = $i + 1;
+                $foundEnd = false;
+
+                while ($j < $n) {
+                    $innerLine = $lines[$j];
+
+                    // Check for "# section end"
+                    if (
+                        preg_match(
+                            "/^\s*#\s*" .
+                                preg_quote($sectionName, "/") .
+                                '\s+end\s*$/',
+                            $innerLine,
+                        )
+                    ) {
+                        $endIndex = $j;
+                        $foundEnd = true;
+                        break;
+                    }
+
+                    $sectionLines[] = $innerLine;
+                    $j++;
+                }
+
+                if ($foundEnd) {
+                    // Join section lines
+                    $sectionContent = implode("\n", $sectionLines);
+                    $sectionContent = rtrim($sectionContent);
+
+                    // Skip if already wrapped
+                    if (!preg_match("/^\s*include_once\s+/", $sectionContent)) {
+                        // Remove indentation relative to marker for saving
+                        $cleanContent = removeRelativeIndentation(
+                            $sectionContent,
+                            $markerIndent,
+                        );
+
+                        // Save to file with clean indentation
+                        $sectionFile = ROOT_PATH . "node.{$sectionName}.php";
+                        file_put_contents(
+                            $sectionFile,
+                            "<?php\n\n{$cleanContent}\n",
+                        );
+
+                        // Replace with include (using marker indentation)
+                        $newLines[] = "{$markerIndent}# {$sectionName} begin";
+                        $newLines[] = "{$markerIndent}include_once \"{\$LOCAL_PATH}node.{$sectionName}.php\";";
+                        $newLines[] = "{$markerIndent}# {$sectionName} end";
+                        $sections[] = $sectionName;
+
+                        $i = $endIndex; // Skip to end
+                    } else {
+                        // Already wrapped, keep as-is
+                        for ($k = $startIndex; $k <= $endIndex; $k++) {
+                            $newLines[] = $lines[$k];
+                        }
+                        $i = $endIndex;
+                    }
+                } else {
+                    // No matching end, keep line as-is
+                    $newLines[] = $line;
+                }
+            } else {
+                $newLines[] = $line;
             }
 
-            $sectionFile = ROOT_PATH . "node.{$sectionName}.php";
-            $includeLine = "include_once \"{\$LOCAL_PATH}node.{$sectionName}.php\";";
-
-            file_put_contents($sectionFile, "<?php\n\n{$sectionContent}");
-
-            $replacement = "# {$sectionName} begin\n{$includeLine}\n# {$sectionName} end";
-            $content = str_replace($match[0], $replacement, $content);
-
-            $sections[] = $sectionName;
+            $i++;
         }
 
         if (empty($sections)) {
             return "✓ node.php is already wrapped\n";
         }
 
-        file_put_contents($nodeFile, $content);
-
+        file_put_contents($nodeFile, implode("\n", $newLines));
         return "✓ Wrapped " .
             count($sections) .
             " sections: " .
@@ -2289,54 +2348,174 @@ if (function_exists("cli_wrap") === !1) {
         }
 
         $content = file_get_contents($nodeFile);
-
-        if (
-            !preg_match_all(
-                '/#\s*([a-z_]+)\s+begin\s*\ninclude_once\s+["\'][^"\']*node\.\1\.php["\'];\s*\n#\s*\1\s+end/s',
-                $content,
-                $matches,
-                PREG_SET_ORDER,
-            )
-        ) {
-            return "E: No wrapped sections found in node.php\n";
-        }
-
+        $lines = explode("\n", $content);
+        $newLines = [];
         $sections = [];
-        foreach ($matches as $match) {
-            $sectionName = $match[1];
-            $sectionFile = ROOT_PATH . "node.{$sectionName}.php";
+        $i = 0;
+        $n = count($lines);
 
-            if (!file_exists($sectionFile)) {
-                continue;
+        while ($i < $n) {
+            $line = $lines[$i];
+
+            // Look for "# section begin"
+            if (
+                preg_match(
+                    '/^(\s*)#\s*([a-z_]+)\s+begin\s*$/',
+                    $line,
+                    $beginMatch,
+                )
+            ) {
+                $markerIndent = $beginMatch[1]; // Indentation of the marker
+                $sectionName = $beginMatch[2];
+                $startIndex = $i;
+
+                // Check if next line is an include
+                if (
+                    $i + 1 < $n &&
+                    preg_match(
+                        '/^\s*include_once\s+["\'][^"\']*node\.' .
+                            preg_quote($sectionName, "/") .
+                            '\.php["\'];\s*$/',
+                        $lines[$i + 1],
+                    )
+                ) {
+                    // Find matching end
+                    $j = $i + 2;
+                    $foundEnd = false;
+
+                    while ($j < $n) {
+                        if (
+                            preg_match(
+                                "/^\s*#\s*" .
+                                    preg_quote($sectionName, "/") .
+                                    '\s+end\s*$/',
+                                $lines[$j],
+                            )
+                        ) {
+                            $endIndex = $j;
+                            $foundEnd = true;
+                            break;
+                        }
+                        $j++;
+                    }
+
+                    if ($foundEnd) {
+                        // Load section from file
+                        $sectionFile = ROOT_PATH . "node.{$sectionName}.php";
+
+                        if (file_exists($sectionFile)) {
+                            $sectionContent = file_get_contents($sectionFile);
+                            $sectionContent = preg_replace(
+                                '/^<\?php\s*\n?/',
+                                "",
+                                $sectionContent,
+                            );
+                            $sectionContent = rtrim($sectionContent);
+
+                            if (!empty($sectionContent)) {
+                                // Add indentation relative to marker
+                                $indentedContent = addRelativeIndentation(
+                                    $sectionContent,
+                                    $markerIndent,
+                                );
+
+                                // Add to new lines
+                                $newLines[] = "{$markerIndent}# {$sectionName} begin";
+                                $newLines = array_merge(
+                                    $newLines,
+                                    explode("\n", $indentedContent),
+                                );
+                                $newLines[] = "{$markerIndent}# {$sectionName} end";
+                                $sections[] = $sectionName;
+
+                                // Delete the file
+                                unlink($sectionFile);
+
+                                $i = $endIndex; // Skip processed lines
+                            } else {
+                                // Empty content, keep as-is
+                                for ($k = $startIndex; $k <= $endIndex; $k++) {
+                                    $newLines[] = $lines[$k];
+                                }
+                                $i = $endIndex;
+                            }
+                        } else {
+                            // File missing, keep as-is
+                            for ($k = $startIndex; $k <= $endIndex; $k++) {
+                                $newLines[] = $lines[$k];
+                            }
+                            $i = $endIndex;
+                        }
+                    } else {
+                        // No matching end, keep line as-is
+                        $newLines[] = $line;
+                    }
+                } else {
+                    // Not wrapped, keep as-is
+                    $newLines[] = $line;
+                }
+            } else {
+                $newLines[] = $line;
             }
 
-            $sectionContent = file_get_contents($sectionFile);
-            $sectionContent = preg_replace(
-                '/^<\?php\s*\n?/',
-                "",
-                $sectionContent,
-            );
-            $sectionContent = rtrim($sectionContent);
-
-            $replacement = "# {$sectionName} begin\n{$sectionContent}\n# {$sectionName} end";
-            $content = str_replace($match[0], $replacement, $content);
-
-            unlink($sectionFile);
-
-            $sections[] = $sectionName;
+            $i++;
         }
 
         if (empty($sections)) {
             return "✓ node.php is already unwrapped\n";
         }
 
-        file_put_contents($nodeFile, $content);
-
+        file_put_contents($nodeFile, implode("\n", $newLines));
         return "✓ Unwrapped " .
             count($sections) .
             " sections: " .
             implode(", ", $sections) .
             "\n";
+    }
+
+    function removeRelativeIndentation(
+        string $content,
+        string $baseIndent,
+    ): string {
+        if (empty($baseIndent)) {
+            return $content;
+        }
+
+        $lines = explode("\n", $content);
+        $cleanedLines = [];
+        $baseIndentLen = strlen($baseIndent);
+
+        foreach ($lines as $line) {
+            // Remove the base indentation if present
+            if (substr($line, 0, $baseIndentLen) === $baseIndent) {
+                $cleanedLines[] = substr($line, $baseIndentLen);
+            } else {
+                // Keep as-is (might be less indented)
+                $cleanedLines[] = $line;
+            }
+        }
+
+        return implode("\n", $cleanedLines);
+    }
+
+    function addRelativeIndentation(string $content, string $baseIndent): string
+    {
+        if (empty($baseIndent)) {
+            return $content;
+        }
+
+        $lines = explode("\n", $content);
+        $indentedLines = [];
+
+        foreach ($lines as $line) {
+            if ($line === "") {
+                $indentedLines[] = "";
+            } else {
+                $indentedLines[] = $baseIndent . $line;
+            }
+        }
+
+        return implode("\n", $indentedLines);
     }
 }
 # cli_wrap end
@@ -2347,74 +2526,93 @@ includeStructure($NODE_STRUCTURE, $LOCAL_PATH, $NODE_REQUIRE);
 # Free memory
 unset($NODE_STRUCTURE, $NODE_REQUIRE);
 
-# execute_run begin
-if (!function_exists("executeRun")) {
-    function executeRun(string $entry): void
-    {
-        if (preg_match('/^([^:]+)::([^(]+)(?:\((.*)\))?$/', $entry, $matches)) {
-            $class = $matches[1];
-            $method = $matches[2];
-            $argString = $matches[3] ?? "";
-
-            if (class_exists($class) && method_exists($class, $method)) {
-                $arguments = [];
-                if ($argString) {
-                    $arguments = array_map("trim", explode(",", $argString));
-                    $arguments = array_map(function ($arg) {
-                        if (preg_match('/^[\'"](.*)[\'"]$/', $arg, $m)) {
-                            return $m[1];
-                        }
-                        return $arg;
-                    }, $arguments);
-                }
-
-                call_user_func_array([$class, $method], $arguments);
-                return;
-            }
-        }
-
-        if (str_contains($entry, "::")) {
-            [$class, $method] = explode("::", $entry, 2);
-
-            if (class_exists($class)) {
-                if (method_exists($class, $method)) {
-                    call_user_func([$class, $method]);
-                    return;
-                } else {
-                    r("Entry method {$entry} not found", "Error");
-                }
-            } else {
-                r("Entry class {$class} not found", "Error");
-            }
-        } elseif (class_exists($entry)) {
-            $instance = new $entry();
-
-            if (method_exists($instance, "__invoke")) {
-                $instance();
-            } elseif (method_exists($instance, "run")) {
-                $instance->run();
-            } elseif (method_exists($instance, "execute")) {
-                $instance->execute();
-            } else {
-                r("Entry class {$entry} has no executable method", "Error");
-            }
-            return;
-        } elseif (function_exists($entry)) {
-            $entry();
-            return;
-        }
-
-        r("Invalid entry point: {$entry}", "Error");
-        http_response_code(500);
-
-        die("Application entry point configuration error [node.json -> run].");
-    }
-}
-# execute_run end
-
 if ($LOCAL_PATH === ROOT_PATH) {
     # Run all included nodes by inclusion order.
     if (!empty($RUN_STRING) && ($RUN_STRING = array_reverse($RUN_STRING))) {
+        # execute_run begin
+        if (!function_exists("executeRun")) {
+            function executeRun(string $entry): void
+            {
+                if (
+                    preg_match(
+                        '/^([^:]+)::([^(]+)(?:\((.*)\))?$/',
+                        $entry,
+                        $matches,
+                    )
+                ) {
+                    $class = $matches[1];
+                    $method = $matches[2];
+                    $argString = $matches[3] ?? "";
+
+                    if (
+                        class_exists($class) &&
+                        method_exists($class, $method)
+                    ) {
+                        $arguments = [];
+                        if ($argString) {
+                            $arguments = array_map(
+                                "trim",
+                                explode(",", $argString),
+                            );
+                            $arguments = array_map(function ($arg) {
+                                if (
+                                    preg_match('/^[\'"](.*)[\'"]$/', $arg, $m)
+                                ) {
+                                    return $m[1];
+                                }
+                                return $arg;
+                            }, $arguments);
+                        }
+
+                        call_user_func_array([$class, $method], $arguments);
+                        return;
+                    }
+                }
+
+                if (str_contains($entry, "::")) {
+                    [$class, $method] = explode("::", $entry, 2);
+
+                    if (class_exists($class)) {
+                        if (method_exists($class, $method)) {
+                            call_user_func([$class, $method]);
+                            return;
+                        } else {
+                            r("Entry method {$entry} not found", "Error");
+                        }
+                    } else {
+                        r("Entry class {$class} not found", "Error");
+                    }
+                } elseif (class_exists($entry)) {
+                    $instance = new $entry();
+
+                    if (method_exists($instance, "__invoke")) {
+                        $instance();
+                    } elseif (method_exists($instance, "run")) {
+                        $instance->run();
+                    } elseif (method_exists($instance, "execute")) {
+                        $instance->execute();
+                    } else {
+                        r(
+                            "Entry class {$entry} has no executable method",
+                            "Error",
+                        );
+                    }
+                    return;
+                } elseif (function_exists($entry)) {
+                    $entry();
+                    return;
+                }
+
+                r("Invalid entry point: {$entry}", "Error");
+                http_response_code(500);
+
+                die(
+                    "Application entry point configuration error [node.json -> run]."
+                );
+            }
+        }
+        # execute_run end
+
         foreach (array_filter($RUN_STRING, fn($x) => !empty($x)) as $run) {
             executeRun($run);
         }
