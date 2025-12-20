@@ -33,7 +33,7 @@ if (!function_exists("f")) {
 
         global $ROOT_PATHS;
 
-        $fn = ltrim(str_replace(ROOT_PATH, "", $fn), DIRECTORY_SEPARATOR);
+        $fn = ltrim(str_replace(ROOT_PATH, "", $fn), D);
 
         foreach ($ROOT_PATHS as $path) {
             $sfn = "{$path}{$fn}";
@@ -313,7 +313,7 @@ if (function_exists("walkStructure") === !1) {
 
                 if (is_array($val)) {
                     $sub = array_is_list($val) ? array_flip($val) : $val;
-                    $srl = "{$location}{$name}" . DIRECTORY_SEPARATOR;
+                    $srl = "{$location}{$name}" . D;
 
                     $r = [
                         ...$r,
@@ -345,7 +345,7 @@ if (function_exists("deployStructure") === !1) {
     deployStructure(); # Only deploy for main entrypoint node.
 }
 
-$LOCAL_VENDOR = "{$LOCAL_PATH}vendor" . DIRECTORY_SEPARATOR . "autoload.php";
+$LOCAL_VENDOR = "{$LOCAL_PATH}vendor" . D . "autoload.php";
 if (file_exists($LOCAL_VENDOR)) {
     include_once $LOCAL_VENDOR;
 }
@@ -370,14 +370,14 @@ if (function_exists("includeStructure") === !1) {
                 }
 
                 foreach ($exclude as $part) {
-                    $ex = DIRECTORY_SEPARATOR . $part . DIRECTORY_SEPARATOR;
+                    $ex = D . $part . D;
                     if (strpos($path, $ex)) {
                         return "";
                     }
                 }
 
                 if (is_dir($path)) {
-                    if ($php = glob($path . DIRECTORY_SEPARATOR . "*.php")) {
+                    if ($php = glob($path . D . "*.php")) {
                         foreach ($php as $fn) {
                             include_once $fn;
 
@@ -393,10 +393,10 @@ if (function_exists("includeStructure") === !1) {
 
         if (is_array($NODE_REQUIRE) && !empty($NODE_REQUIRE)) {
             foreach ($NODE_REQUIRE as $node) {
-                $path = $LOCAL_PATH . ".." . DIRECTORY_SEPARATOR . $node;
+                $path = $LOCAL_PATH . ".." . D . $node;
 
                 if ($check = realpath($path)) {
-                    $file = $check . DIRECTORY_SEPARATOR . "node.php";
+                    $file = $check . D . "node.php";
                     file_exists($file) && (include_once $file);
                 } else {
                     throw new Exception(
@@ -417,11 +417,11 @@ if (function_exists("callStructure") === !1) {
         return walkStructure(
             NODE_STRUCTURE,
             function (string $path, mixed $v) use (&$calls): array {
-                if (glob($path . DIRECTORY_SEPARATOR . "*", GLOB_ONLYDIR)) {
+                if (glob($path . D . "*", GLOB_ONLYDIR)) {
                     return [];
                 }
 
-                $exp = explode(DIRECTORY_SEPARATOR, $path);
+                $exp = explode(D, $path);
 
                 $i = 0;
                 $l = count($exp);
@@ -429,7 +429,7 @@ if (function_exists("callStructure") === !1) {
                 do {
                     $i++;
                     $slice = array_slice($exp, $l - $i, $i);
-                    $call = implode(DIRECTORY_SEPARATOR, $slice);
+                    $call = implode(D, $slice);
                     if (!in_array($call, $calls, true)) {
                         $calls[] = $call;
                         break;
@@ -454,7 +454,7 @@ if (function_exists("generateBoilerplate") === !1) {
             ? substr($call, strlen($LOCAL_PATH))
             : $call;
 
-        $parts = explode(DIRECTORY_SEPARATOR, trim($call, DIRECTORY_SEPARATOR));
+        $parts = explode(D, trim($call, D));
         $parts = array_filter($parts, fn($p) => !empty($p));
 
         $leaf = end($parts); // e.g., Repository, Command, Controller
@@ -518,9 +518,9 @@ if (function_exists("cli_deprecate") === !1) {
                     $path = $c[1];
 
                     $patterns = [
-                        "{$path}" . DIRECTORY_SEPARATOR . "{$name}.php",
-                        "{$path}" . DIRECTORY_SEPARATOR . "{$name}.*.php",
-                        "{$path}" . DIRECTORY_SEPARATOR . "*{$name}*.php",
+                        "{$path}" . D . "{$name}.php",
+                        "{$path}" . D . "{$name}.*.php",
+                        "{$path}" . D . "*{$name}*.php",
                     ];
 
                     $foundFile = null;
@@ -704,9 +704,9 @@ if (function_exists("cli_git") === !1) {
             return "Git already targeting {$target}\n";
         }
 
-        $rootDir = ROOT_PATH . "Git" . DIRECTORY_SEPARATOR;
-        $targetDir = $rootDir . $target . DIRECTORY_SEPARATOR;
-        $sourceDir = $rootDir . $source . DIRECTORY_SEPARATOR;
+        $rootDir = ROOT_PATH . "Git" . D;
+        $targetDir = $rootDir . $target . D;
+        $sourceDir = $rootDir . $source . D;
 
         $flagMoveToSource = count(scandir($sourceDir)) > 2;
 
@@ -912,9 +912,7 @@ if (function_exists("cli_list") === !1) {
         if ($call = $argv[0] ?? null) {
             foreach (callStructure() as $c) {
                 if ($c[0] === $call) {
-                    if (
-                        $resources = glob($c[1] . DIRECTORY_SEPARATOR . "*.*")
-                    ) {
+                    if ($resources = glob($c[1] . D . "*.*")) {
                         $r = "Found (" . count($resources) . ") resources:\n";
                         foreach ($resources as $fp) {
                             $mtime = date("Y-m-d H:i:s", filemtime($fp));
@@ -1157,10 +1155,16 @@ if (function_exists("cli_log") === !1) {
     function showLogs(array $options): string
     {
         if (empty($options)) {
-            return "E: Specify log file or type. Usage: log show <file|type> [limit]\n";
+            return listLogs([]) .
+                "\nE: Specify log file or type. Usage: log show <file|type> [limit]\n";
         }
 
         $target = $options[0];
+
+        if ($target === "system") {
+            return "E: System logs can only be Tailed, use sudo php node log tail <fn> <?rows>\n";
+        }
+
         $limit = $options[1] ?? 50;
 
         $logFiles = getAllLogFiles();
@@ -1185,10 +1189,10 @@ if (function_exists("cli_log") === !1) {
         }
 
         $allEntries = logReadFilesArray($selectedLogs);
+        $c = count($allEntries);
         $limitedEntries = array_slice($allEntries, 0, $limit);
 
-        $output =
-            "Showing {$limit} of " . count($allEntries) . " log entries:\n";
+        $output = "Showing {$limit} of {$c} log in [{$target}] entries:\n";
 
         foreach ($limitedEntries as $entry) {
             $timestamp = $entry["timestamp"] ?? "unknown";
@@ -1222,7 +1226,8 @@ if (function_exists("cli_log") === !1) {
     function clearLogs(array $options): string
     {
         if (empty($options)) {
-            return "E: Specify what to clear. Usage: log clear <file|type|all>\n";
+            return listLogs([]) .
+                "\nE: Specify what to clear. Usage: log clear <file|type|all>\n";
         }
 
         $target = $options[0];
@@ -1270,7 +1275,8 @@ if (function_exists("cli_log") === !1) {
     function tailLogs(array $options): string
     {
         if (empty($options)) {
-            return "E: Specify log file. Usage: log tail <file> [lines]\n";
+            return listLogs([]) .
+                "\nE: Specify log file. Usage: log tail <file> [lines]\n";
         }
 
         $file = $options[0];
@@ -1329,11 +1335,7 @@ if (function_exists("cli_migrate") === !1) {
                     $output .= "\n{$type} Migrations:\n";
 
                     $migrations = glob(
-                        $migrationPath .
-                            DIRECTORY_SEPARATOR .
-                            $type .
-                            DIRECTORY_SEPARATOR .
-                            "*.php",
+                        $migrationPath . D . $type . D . "*.php",
                     );
 
                     if (empty($migrations)) {
@@ -1388,13 +1390,7 @@ if (function_exists("cli_migrate") === !1) {
         $applied = [];
 
         foreach (["SQL", "PHP"] as $type) {
-            $migrations = glob(
-                $migrationPath .
-                    DIRECTORY_SEPARATOR .
-                    $type .
-                    DIRECTORY_SEPARATOR .
-                    "*.php",
-            );
+            $migrations = glob($migrationPath . D . $type . D . "*.php");
             sort($migrations);
 
             foreach ($migrations as $migration) {
@@ -1476,12 +1472,7 @@ if (function_exists("cli_migrate") === !1) {
                 }
 
                 $migrationFile =
-                    $migrationPath .
-                    DIRECTORY_SEPARATOR .
-                    $type .
-                    DIRECTORY_SEPARATOR .
-                    $fileName .
-                    ".php";
+                    $migrationPath . D . $type . D . $fileName . ".php";
 
                 if (!file_exists($migrationFile)) {
                     continue;
@@ -1562,7 +1553,7 @@ if (function_exists("cli_migrate") === !1) {
             return "E: Invalid migration type. Must be SQL or PHP.\n";
         }
 
-        $migrationDir = $migrationPath . DIRECTORY_SEPARATOR . $type;
+        $migrationDir = $migrationPath . D . $type;
 
         if (!is_dir($migrationDir)) {
             mkdir($migrationDir, 0777, true);
@@ -1588,15 +1579,13 @@ if (function_exists("cli_migrate") === !1) {
             }
             PHP;
 
-            $filePath =
-                $migrationDir . DIRECTORY_SEPARATOR . $fileName . ".php";
+            $filePath = $migrationDir . D . $fileName . ".php";
             file_put_contents($filePath, $content);
 
             return "Created PHP migration: {$filePath}\n";
         } else {
-            $sqlFile = $migrationDir . DIRECTORY_SEPARATOR . $fileName . ".sql";
-            $downSqlFile =
-                $migrationDir . DIRECTORY_SEPARATOR . $fileName . ".down.sql";
+            $sqlFile = $migrationDir . D . $fileName . ".sql";
+            $downSqlFile = $migrationDir . D . $fileName . ".down.sql";
 
             file_put_contents(
                 $sqlFile,
@@ -1625,8 +1614,7 @@ if (function_exists("cli_migrate") === !1) {
             }
             PHP;
 
-            $phpFilePath =
-                $migrationDir . DIRECTORY_SEPARATOR . $fileName . ".php";
+            $phpFilePath = $migrationDir . D . $fileName . ".php";
             file_put_contents($phpFilePath, $content);
 
             return "Created SQL migration:\n  {$sqlFile}\n  {$downSqlFile}\n  {$phpFilePath}\n";
@@ -1650,10 +1638,7 @@ if (function_exists("cli_new") === !1) {
                         $migrationName = "{$timestamp}_{$safeName}";
 
                         $fc = generateBoilerplate($c[1], $safeName, ROOT_PATH);
-                        $fn =
-                            $c[1] .
-                            DIRECTORY_SEPARATOR .
-                            "{$migrationName}{$fc[1]}.php";
+                        $fn = $c[1] . D . "{$migrationName}{$fc[1]}.php";
 
                         if (strpos($c[1], "Migration/PHP") !== false) {
                             $className = str_replace(
@@ -1687,7 +1672,7 @@ if (function_exists("cli_new") === !1) {
                         return "Migration file created at {$fn} size {$size} bytes.\n";
                     } elseif (strpos($c[1], "Public") !== false) {
                         $ext = strpos($name, ".") !== false ? "" : ".php";
-                        $fn = $c[1] . DIRECTORY_SEPARATOR . $name . $ext;
+                        $fn = $c[1] . D . $name . $ext;
                         if (!file_exists($fn)) {
                             $size = file_put_contents($fn, "\n");
                             return "File created at {$fn} size {$size} bytes.\n";
@@ -1697,8 +1682,7 @@ if (function_exists("cli_new") === !1) {
                     } else {
                         // Regular resource creation
                         $fc = generateBoilerplate($c[1], $name, ROOT_PATH);
-                        $fn =
-                            $c[1] . DIRECTORY_SEPARATOR . "{$name}{$fc[1]}.php";
+                        $fn = $c[1] . D . "{$name}{$fc[1]}.php";
                         if (!file_exists($fn)) {
                             $size = file_put_contents($fn, $fc[0]);
                             return "File created at {$fn} size {$size} bytes.\n";
@@ -1723,7 +1707,7 @@ if (function_exists("cli_serve") === !1) {
 
         $port = $argv[0] ?? "8000";
         $host = "localhost";
-        $documentRoot = ROOT_PATH . "Public" . DIRECTORY_SEPARATOR . "Entry";
+        $documentRoot = ROOT_PATH . "Public" . D . "Entry";
 
         $socket = @fsockopen($host, (int) $port);
         if ($socket) {
@@ -1766,13 +1750,13 @@ if (function_exists("cli_test") === !1) {
                 "\n";
         }
 
-        $testPath = ROOT_PATH . "Test" . DIRECTORY_SEPARATOR . $type;
+        $testPath = ROOT_PATH . "Test" . D . $type;
 
         if (!is_dir($testPath)) {
             return "E: Test directory not found: {$testPath}\n";
         }
 
-        $phpFiles = glob($testPath . DIRECTORY_SEPARATOR . "*.php");
+        $phpFiles = glob($testPath . D . "*.php");
 
         if (empty($phpFiles)) {
             return "No {$type} tests found.\n";
@@ -1935,6 +1919,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         }
         unset($run);
     }
+    unset($RUN_STRING);
 
     if (PHP_SAPI === "cli") {
         if (isset($argv[1])) {
@@ -1954,7 +1939,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
         unset($TIME_START, $LOCAL_PATH, $u, $m, $title);
 
-        echo ", User defined global scope variables: [" .
+        echo ", Global variables: [" .
             implode(
                 ",",
                 array_diff(array_keys(get_defined_vars()), [
