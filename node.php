@@ -328,10 +328,10 @@ if (function_exists("walkStructure") === !1) {
 }
 
 if (function_exists("deployStructure") === !1) {
-    function deployStructure(): void
+    function deployStructure(?array $NODE_STRUCTURE = null): void
     {
         walkStructure(
-            NODE_STRUCTURE,
+            $NODE_STRUCTURE ?? NODE_STRUCTURE,
             function (string $path): string {
                 if (!is_dir($path)) {
                     mkdir($path, 0777, true);
@@ -343,7 +343,7 @@ if (function_exists("deployStructure") === !1) {
             ROOT_PATH,
         );
     }
-    deployStructure(); # Only deploy for main entrypoint node.
+    deployStructure($NODE_STRUCTURE); # Only deploy for main entrypoint node.
 }
 
 $LOCAL_VENDOR = "{$LOCAL_PATH}vendor" . D . "autoload.php";
@@ -1512,27 +1512,39 @@ if (function_exists("cli_make") === !1) {
 
             chdir($newNodePath);
 
-            $nodeFile = $newNodePath . "Git" . D . "Node" . D . "node.php";
-            $symlink = $newNodePath . "Git" . D . "Node" . D . "node";
+            $nodeFile = "{$newNodePath}Git" . D . "Node" . D . "node.php";
+            $symlink = "{$newNodePath}Git" . D . "Node" . D . "node";
 
             if (file_exists($nodeFile)) {
                 rename($nodeFile, "{$newNodePath}node.php");
                 $output .= "✓ node.php moved to root\n";
             }
 
-            if (file_exists($symlink)) {
-                rename($symlink, "{$newNodePath}node");
-                $output .= "✓ node symlink moved to root\n";
-            }
+            if (file_exists("{$newNodePath}node.php")) {
+                if (file_exists($symlink)) {
+                    if (rename($symlink, "{$newNodePath}node")) {
+                        $output .= "✓ node symlink moved to root\n";
+                    }
+                } else {
+                    chdir($newNodePath);
+                    if (symlink("node.php", "node")) {
+                        $output .= "✓ New node symlink created\n";
+                    } else {
+                        $output .= "Note: Could not create node symlink\n";
+                    }
+                }
 
-            chdir($newNodePath);
-            exec("php node git Node 2>&1", $gitOutput, $gitCode);
+                chdir($newNodePath);
+                exec("php node.php git Node 2>&1", $gitOutput, $gitCode);
 
-            if ($gitCode === 0) {
-                $output .= "✓ Node set to Node mode\n";
+                if ($gitCode === 0) {
+                    $output .= "✓ Node set to Node mode\n";
+                } else {
+                    $output .= "N({$gitCode}): Run manually: php node git Node\n";
+                    $output .= implode("\n", $gitOutput) . "\n";
+                }
             } else {
-                $output .=
-                    "Note: Could not set Node mode (run manually: php node git Node)\n";
+                $output .= "E: could not move node.php \n";
             }
 
             $nodeConfig = [
@@ -1561,7 +1573,7 @@ if (function_exists("cli_make") === !1) {
         chdir($originalDir);
 
         $output .= "\nNew node created at: {$newNodePath}\n";
-        $output .= "To enter: cd " . escapeshellarg($folderName) . "\n";
+        $output .= "To enter: cd ../" . escapeshellarg($folderName) . "\n";
         $output .= "To start: php node serve\n";
 
         return $output;
