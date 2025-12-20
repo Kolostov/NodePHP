@@ -366,7 +366,7 @@ if (function_exists("includeStructure") === !1) {
 
                 $exclude = ["Git", "Test", "Public", "Log", "Deprecated"];
                 if (PHP_SAPI !== "cli") {
-                    $exclude = [...$exclude, ["Migration"]];
+                    $exclude = [...$exclude, ...["Migration"]];
                 }
 
                 foreach ($exclude as $part) {
