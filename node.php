@@ -207,7 +207,7 @@ try {
                 "Contract" => "Interface compliance tests",
                 "E2E" => "Full end-to-end request/response tests",
             ],
-            "Depricated" => "Files that are considered depricated.",
+            "Deprecated" => "Files that are considered deprecated.",
             "Log" => [
                 "Internal" => "Application runtime logs",
                 "Access" => "HTTP request logs",
@@ -362,7 +362,7 @@ if (function_exists("includeStructure") === !1) {
                     return "";
                 }
 
-                $exclude = ["Git", "Test", "Public", "Log", "Depricated"];
+                $exclude = ["Git", "Test", "Public", "Log", "Deprecated"];
                 if (PHP_SAPI !== "cli") {
                     $exclude = [...$exclude, ["Migration"]];
                 }
