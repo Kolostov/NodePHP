@@ -51,243 +51,241 @@ if (!function_exists("f")) {
 $NODE_STRUCTURE_DEFINITIONS = "{$LOCAL_PATH}node.json";
 
 try {
-    if (
-        $node = file_exists($NODE_STRUCTURE_DEFINITIONS)
-            ? json_decode(
-                file_get_contents($NODE_STRUCTURE_DEFINITIONS),
-                !0,
-                512,
-                JSON_THROW_ON_ERROR,
-            )
-            : null
-    ) {
-        $NODE_STRUCTURE = $node["structure"] ?? [
-            "Enum" => [
-                "State" => "Finite lifecycle state (Draft, Active, ...)",
-                "Status" => "Operational status (OK, Failed, Pending)",
-                "Type" => "Categorization or classification",
-                "Policy" => "Rule selection enum",
-            ],
+    $node = file_exists($NODE_STRUCTURE_DEFINITIONS)
+        ? json_decode(
+            file_get_contents($NODE_STRUCTURE_DEFINITIONS),
+            !0,
+            512,
+            JSON_THROW_ON_ERROR,
+        )
+        : null;
 
-            "Function" => [
-                "Helper" => "Global stateless helpers",
-                "Predicate" => "Boolean-returning decision functions",
-                "Transformer" => "Pure data-to-data transformations",
-                "Presenter" => "Formatting helpers (headers, payloads)",
-            ],
+    $NODE_STRUCTURE = $node["structure"] ?? [
+        "Enum" => [
+            "State" => "Finite lifecycle state (Draft, Active, ...)",
+            "Status" => "Operational status (OK, Failed, Pending)",
+            "Type" => "Categorization or classification",
+            "Policy" => "Rule selection enum",
+        ],
 
-            "Trait" => [
-                "Concern" => "Shared implementation across classes",
-                "Capability" => "Adds opt-in behavior (Loggable, Gainable)",
-                "Mixin" => "Pure helper logic without identity",
-            ],
+        "Function" => [
+            "Helper" => "Global stateless helpers",
+            "Predicate" => "Boolean-returning decision functions",
+            "Transformer" => "Pure data-to-data transformations",
+            "Presenter" => "Formatting helpers (headers, payloads)",
+        ],
 
-            "Interface" => [
+        "Trait" => [
+            "Concern" => "Shared implementation across classes",
+            "Capability" => "Adds opt-in behavior (Loggable, Gainable)",
+            "Mixin" => "Pure helper logic without identity",
+        ],
+
+        "Interface" => [
+            "Presentation" => [
+                "Controller" => "Inbound request handling contract",
+                "Endpoint" => "Public callable API contract",
+                "Responder" => "Response formatting contract",
+                "View" => "Renderable view contract",
+            ],
+            "Behavioral" => [
+                "Strategy" => "Algorithm interchangeable at runtime",
+                "Command" => "Executable request abstraction",
+                "Specification" => "Combinable business rule",
+                "Policy" => "Decision rule contract",
+                "State" => "State-dependent behavior contract",
+            ],
+            "Structural" => [
+                "Repository" => "Persistence abstraction",
+                "Adapter" => "Interface translation layer",
+                "Proxy" => "Access-controlling surrogate",
+                "Decorator" => "Behavior-extending wrapper",
+            ],
+            "Creational" => [
+                "Factory" => "Object creation abstraction",
+                "Builder" => "Stepwise object construction",
+            ],
+            "Infrastructure" => [
+                "EventDispatcher" => "Event publication contract",
+                "Bus" => "Message transport contract",
+                "Gateway" => "External system boundary",
+                "Client" => "Outbound communication contract",
+            ],
+        ],
+
+        "Class" => [
+            "Final" => [
                 "Presentation" => [
-                    "Controller" => "Inbound request handling contract",
-                    "Endpoint" => "Public callable API contract",
-                    "Responder" => "Response formatting contract",
-                    "View" => "Renderable view contract",
+                    "Controller" => "Concrete request handler",
+                    "Endpoint" => "Concrete public API endpoint",
+                    "Responder" => "Concrete response formatter",
+                    "View" => "Concrete renderable template",
+                    "Component" => "Reusable UI or API component",
                 ],
+
+                "ValueObject" => "Immutable identity-less value",
+                "DTO" => "Transport-only data carrier",
+                "Entity" => "Domain object with identity",
+
                 "Behavioral" => [
-                    "Strategy" => "Algorithm interchangeable at runtime",
-                    "Command" => "Executable request abstraction",
-                    "Specification" => "Combinable business rule",
-                    "Policy" => "Decision rule contract",
-                    "State" => "State-dependent behavior contract",
+                    "Strategy" => "Concrete interchangeable algorithm",
+                    "Command" => "Executable intent",
+                    "Specification" => "Concrete business rule",
+                    "Policy" => "Concrete decision logic",
                 ],
+
                 "Structural" => [
-                    "Repository" => "Persistence abstraction",
-                    "Adapter" => "Interface translation layer",
-                    "Proxy" => "Access-controlling surrogate",
-                    "Decorator" => "Behavior-extending wrapper",
+                    "Decorator" => "Behavior-extending wrapper implem.",
+                    "Adapter" => "Concrete interface translator",
+                    "Proxy" => "Concrete access surrogate",
+                    "Facade" => "Simplified subsystem interface",
                 ],
+
                 "Creational" => [
-                    "Factory" => "Object creation abstraction",
-                    "Builder" => "Stepwise object construction",
+                    "Factory" => "Concrete object creator",
+                    "Builder" => "Concrete stepwise constructor",
+                ],
+
+                "Coordination" => [
+                    "Mediator" => "Central interaction coordinator",
+                    "EventDispatcher" => "Concrete event publisher",
+                    "Pipeline" => "Sequential processing chain",
+                ],
+
+                "Infrastructure" => [
+                    "Service" => "Stateless application service",
+                    "Client" => "Concrete outbound integration",
+                    "Gateway" => "Concrete external boundary",
+                ],
+            ],
+
+            "Abstract" => [
+                "Presentation" => [
+                    "Controller" => "Controller base",
+                    "Endpoint" => "Endpoint base",
+                    "Responder" => "Responder base",
+                ],
+                "Base" => [
+                    "Controller" => "Request-handling base class",
+                    "Service" => "Shared service logic base",
+                    "Repository" => "Persistence base implementation",
+                    "Command" => "Command base abstraction",
                 ],
                 "Infrastructure" => [
-                    "EventDispatcher" => "Event publication contract",
-                    "Bus" => "Message transport contract",
-                    "Gateway" => "External system boundary",
-                    "Client" => "Outbound communication contract",
+                    "Database" => "Database integration base",
+                    "Migration" => "Abstract migration base",
+                    "Transport" => "Communication transport base",
+                    "Cache" => "Caching mechanism base",
                 ],
             ],
-
-            "Class" => [
-                "Final" => [
-                    "Presentation" => [
-                        "Controller" => "Concrete request handler",
-                        "Endpoint" => "Concrete public API endpoint",
-                        "Responder" => "Concrete response formatter",
-                        "View" => "Concrete renderable template",
-                        "Component" => "Reusable UI or API component",
-                    ],
-
-                    "ValueObject" => "Immutable identity-less value",
-                    "DTO" => "Transport-only data carrier",
-                    "Entity" => "Domain object with identity",
-
-                    "Behavioral" => [
-                        "Strategy" => "Concrete interchangeable algorithm",
-                        "Command" => "Executable intent",
-                        "Specification" => "Concrete business rule",
-                        "Policy" => "Concrete decision logic",
-                    ],
-
-                    "Structural" => [
-                        "Decorator" => "Behavior-extending wrapper implem.",
-                        "Adapter" => "Concrete interface translator",
-                        "Proxy" => "Concrete access surrogate",
-                        "Facade" => "Simplified subsystem interface",
-                    ],
-
-                    "Creational" => [
-                        "Factory" => "Concrete object creator",
-                        "Builder" => "Concrete stepwise constructor",
-                    ],
-
-                    "Coordination" => [
-                        "Mediator" => "Central interaction coordinator",
-                        "EventDispatcher" => "Concrete event publisher",
-                        "Pipeline" => "Sequential processing chain",
-                    ],
-
-                    "Infrastructure" => [
-                        "Service" => "Stateless application service",
-                        "Client" => "Concrete outbound integration",
-                        "Gateway" => "Concrete external boundary",
-                    ],
+        ],
+        "Public" => [
+            "Entry" => "Front entrypoints (index.php, api.php, .htaccess)",
+            "Static" => [
+                "Asset" => [
+                    "CSS" => "Compiled or authored stylesheets",
+                    "JS" => "Compiled or authored scripts",
+                    "IMG" => "Images (png, jpg, svg, webp)",
+                    "FONT" => "Web fonts",
                 ],
-
-                "Abstract" => [
-                    "Presentation" => [
-                        "Controller" => "Controller base",
-                        "Endpoint" => "Endpoint base",
-                        "Responder" => "Responder base",
-                    ],
-                    "Base" => [
-                        "Controller" => "Request-handling base class",
-                        "Service" => "Shared service logic base",
-                        "Repository" => "Persistence base implementation",
-                        "Command" => "Command base abstraction",
-                    ],
-                    "Infrastructure" => [
-                        "Database" => "Database integration base",
-                        "Migration" => "Abstract migration base",
-                        "Transport" => "Communication transport base",
-                        "Cache" => "Caching mechanism base",
-                    ],
+                "Media" => [
+                    "Upload" => "User-uploaded files",
+                    "Cache" => "Publicly cacheable generated files",
                 ],
+                "Meta" => "robots.txt, security.txt, humans.txt, manifests",
+                "Build" => "Build outputs",
             ],
-            "Public" => [
-                "Entry" => "Front entrypoints (index.php, api.php, .htaccess)",
-                "Static" => [
-                    "Asset" => [
-                        "CSS" => "Compiled or authored stylesheets",
-                        "JS" => "Compiled or authored scripts",
-                        "IMG" => "Images (png, jpg, svg, webp)",
-                        "FONT" => "Web fonts",
-                    ],
-                    "Media" => [
-                        "Upload" => "User-uploaded files",
-                        "Cache" => "Publicly cacheable generated files",
-                    ],
-                    "Meta" => "robots.txt, security.txt, humans.txt, manifests",
-                    "Build" => "Build outputs",
-                ],
-            ],
-            "Migration" => [
-                "Base" => "Abstract migration base class",
-                "SQL" => "Raw SQL migration",
-                "PHP" => "Programmatic migration class",
-            ],
-            "Test" => [
-                "Unit" => "Self-contained class or function tests",
-                "Integration" => "Tests involving multiple nodes",
-                "Contract" => "Interface compliance tests",
-                "E2E" => "Full end-to-end request/response tests",
-            ],
-            "Deprecated" => "Files that are considered deprecated.",
-            "Log" => [
-                "Internal" => "Application runtime logs",
-                "Access" => "HTTP request logs",
-                "Error" => "Error and exception logs",
-                "Audit" => "Security and audit trails",
-            ],
-            "Git" => [
-                "Node" => "Node.php project repository",
-                "Project" => "All excluding the Node.php",
-            ],
-            "Backup" => "Zips of backed up states",
-        ];
+        ],
+        "Migration" => [
+            "Base" => "Abstract migration base class",
+            "SQL" => "Raw SQL migration",
+            "PHP" => "Programmatic migration class",
+        ],
+        "Test" => [
+            "Unit" => "Self-contained class or function tests",
+            "Integration" => "Tests involving multiple nodes",
+            "Contract" => "Interface compliance tests",
+            "E2E" => "Full end-to-end request/response tests",
+        ],
+        "Deprecated" => "Files that are considered deprecated.",
+        "Log" => [
+            "Internal" => "Application runtime logs",
+            "Access" => "HTTP request logs",
+            "Error" => "Error and exception logs",
+            "Audit" => "Security and audit trails",
+        ],
+        "Git" => [
+            "Node" => "Node.php project repository",
+            "Project" => "All excluding the Node.php",
+        ],
+        "Backup" => "Zips of backed up states",
+    ];
 
-        unset($NODE_STRUCTURE_DEFINITIONS);
+    unset($NODE_STRUCTURE_DEFINITIONS);
 
-        # Main entry point node.
-        $NODE_NAME = $node["name"] ?? "Noname";
-        if (defined("NODE_NAME") === !1) {
-            define("NODE_NAME", $NODE_NAME);
-            define("NODE_STRUCTURE", $NODE_STRUCTURE ?? []);
-        }
-
-        if (file_exists("{$LOCAL_PATH}.env")) {
-            $lines = file(
-                "{$LOCAL_PATH}.env",
-                FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES,
-            );
-            foreach ($lines as $line) {
-                if (str_starts_with($line, "#") || !str_contains($line, "=")) {
-                    continue;
-                }
-
-                [$key, $value] = explode("=", $line, 2);
-                $key = "{$NODE_NAME}:" . strtoupper(trim($key));
-                $value = trim(trim($value), "'\"");
-
-                $_ENV[$key] = $value;
-
-                putenv("{$key}={$value}");
-                unset($line, $key, $value);
-            }
-            unset($lines);
-        }
-
-        if (function_exists("env") === !1) {
-            function env(string $key, mixed $default = null): mixed
-            {
-                $key = strtoupper(trim($key));
-
-                $prefixedKey = NODE_NAME . ":{$key}";
-                $value = $_ENV[$prefixedKey] ?? getenv($prefixedKey);
-
-                if ($value !== null && $value !== false) {
-                    if (strtolower($value) === "true") {
-                        return true;
-                    }
-                    if (strtolower($value) === "false") {
-                        return false;
-                    }
-                    if (strtolower($value) === "null") {
-                        return null;
-                    }
-                    if (is_numeric($value)) {
-                        return strpos($value, ".") !== false
-                            ? (float) $value
-                            : (int) $value;
-                    }
-                    return $value;
-                }
-
-                return $default;
-            }
-        }
-
-        $NODE_REQUIRE = $node["require"] ?? [];
-        $RUN_STRING[] = $node["run"] ?? null;
-
-        unset($node, $NODE_NAME);
+    # Main entry point node.
+    $NODE_NAME = $node["name"] ?? "Noname";
+    if (defined("NODE_NAME") === !1) {
+        define("NODE_NAME", $NODE_NAME);
+        define("NODE_STRUCTURE", $NODE_STRUCTURE ?? []);
     }
+
+    if (file_exists("{$LOCAL_PATH}.env")) {
+        $lines = file(
+            "{$LOCAL_PATH}.env",
+            FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES,
+        );
+        foreach ($lines as $line) {
+            if (str_starts_with($line, "#") || !str_contains($line, "=")) {
+                continue;
+            }
+
+            [$key, $value] = explode("=", $line, 2);
+            $key = "{$NODE_NAME}:" . strtoupper(trim($key));
+            $value = trim(trim($value), "'\"");
+
+            $_ENV[$key] = $value;
+
+            putenv("{$key}={$value}");
+            unset($line, $key, $value);
+        }
+        unset($lines);
+    }
+
+    if (function_exists("env") === !1) {
+        function env(string $key, mixed $default = null): mixed
+        {
+            $key = strtoupper(trim($key));
+
+            $prefixedKey = NODE_NAME . ":{$key}";
+            $value = $_ENV[$prefixedKey] ?? getenv($prefixedKey);
+
+            if ($value !== null && $value !== false) {
+                if (strtolower($value) === "true") {
+                    return true;
+                }
+                if (strtolower($value) === "false") {
+                    return false;
+                }
+                if (strtolower($value) === "null") {
+                    return null;
+                }
+                if (is_numeric($value)) {
+                    return strpos($value, ".") !== false
+                        ? (float) $value
+                        : (int) $value;
+                }
+                return $value;
+            }
+
+            return $default;
+        }
+    }
+
+    $NODE_REQUIRE = $node["require"] ?? [];
+    $RUN_STRING[] = $node["run"] ?? null;
+
+    unset($node, $NODE_NAME);
 } catch (Exception $e) {
     $msg = "Invalid {$NODE_STRUCTURE_DEFINITIONS}: " . json_last_error_msg();
 
