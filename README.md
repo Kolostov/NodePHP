@@ -23,6 +23,7 @@ Defining node parameters in *node.json* file:
 ```json
 {
     "name": "Sample",
+    "run": "Function\\Helper\\FunctionName",
     "structure": [
         "Depricated" => "Files that are considered depricated.",
         "Log" => [

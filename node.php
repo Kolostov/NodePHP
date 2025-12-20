@@ -219,6 +219,7 @@ try {
                 "Node" => "Node.php project repository",
                 "Project" => "All excluding the Node.php",
             ],
+            "Backup" => "Zips of backed up states",
         ];
 
         unset($NODE_STRUCTURE_DEFINITIONS);
@@ -364,12 +365,13 @@ if (function_exists("includeStructure") === !1) {
                     return "";
                 }
 
-                $exclude = ["Git", "Test", "Public", "Log", "Deprecated"];
+                # Exclude from runtimes
+                $e = ["Git", "Test", "Public", "Log", "Deprecated", "Backup"];
                 if (PHP_SAPI !== "cli") {
-                    $exclude = [...$exclude, ...["Migration"]];
+                    $e = [...$e, ...["Migration"]];
                 }
 
-                foreach ($exclude as $part) {
+                foreach ($e as $part) {
                     $ex = D . $part . D;
                     if (strpos($path, $ex)) {
                         return "";
@@ -502,6 +504,78 @@ if (function_exists("generateBoilerplate") === !1) {
             ,
             $leaf,
         ];
+    }
+}
+
+if (function_exists("cli_backup") === !1) {
+    function cli_backup(bool $tooltip = false, array $argv): string
+    {
+        if ($tooltip) {
+            return "[name] Creates a backup zip of the node (excludes Log, Backup folders).";
+        }
+
+        if (!class_exists("ZipArchive")) {
+            return "E: Zip extension not loaded. Install: sudo apt-get install php-zip\n";
+        }
+
+        $backupName = $argv[0] ?? date("Ymd");
+        $backupDir = ROOT_PATH . "Backup" . D;
+
+        $zipName = "{$backupDir}{$backupName}.zip";
+
+        if (file_exists($zipName)) {
+            return "E: Backup '{$backupName}.zip' already exists\n";
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($zipName, ZipArchive::CREATE) !== true) {
+            return "E: Cannot create zip file\n";
+        }
+
+        $exclude = ["Backup", "Log", "Deprecated", "vendor", "node_modules"];
+        $added = 0;
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator(
+                ROOT_PATH,
+                RecursiveDirectoryIterator::SKIP_DOTS,
+            ),
+            RecursiveIteratorIterator::SELF_FIRST,
+        );
+
+        foreach ($iterator as $file) {
+            $filePath = $file->getRealPath();
+            $relativePath = substr($filePath, strlen(ROOT_PATH));
+
+            $skip = false;
+            foreach ($exclude as $ex) {
+                if (
+                    strpos($relativePath, $ex . D) === 0 ||
+                    $relativePath === $ex
+                ) {
+                    $skip = true;
+                    break;
+                }
+            }
+
+            if ($skip) {
+                continue;
+            }
+
+            if ($file->isDir()) {
+                $zip->addEmptyDir($relativePath);
+            } else {
+                $zip->addFile($filePath, $relativePath);
+                $added++;
+            }
+        }
+
+        $zip->close();
+        $size = filesize($zipName);
+
+        return "Backup created: {$zipName} ({$added} files, " .
+            number_format($size / 1024 / 1024, 2) .
+            " MB)\n";
     }
 }
 
