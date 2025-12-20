@@ -8,6 +8,7 @@ if (defined("NODE_NAME") === !1) {
     ini_set("display_errors", !0);
     $TIME_START = microtime(true);
     $ROOT_PATHS = [];
+    $RUN_STRING = [];
 
     define("D", DIRECTORY_SEPARATOR);
 
@@ -282,6 +283,7 @@ try {
         }
 
         $NODE_REQUIRE = $node["require"] ?? [];
+        $RUN_STRING[] = $node["run"] ?? null;
 
         unset($node, $NODE_NAME);
     }
@@ -750,7 +752,7 @@ if (function_exists("cli_help") === !1) {
         }
         return "$r\n" .
             "Static file path resolution function\n\tf(string path, bool critical) : string\n" .
-            "Result logging function\n\tr(string logMessage, mixed return, ?array|obj contextData = [], ?string logType = Internal)\n" .
+            "Result logging function\n\tr(string logMessage, ?string logType = Internal, ?mixed return, ?array|obj contextData = [])\n" .
             "LogTypes: [Internal, Access, Audit, Error]\n";
     }
 }
@@ -940,9 +942,9 @@ if (function_exists("cli_list") === !1) {
 if (!function_exists("r")) {
     function r(
         string $logMessage,
+        string $logType = "Internal",
         mixed $return = null,
         null|array|object $dataArray = null,
-        string $logType = "Internal",
     ): mixed {
         static $logDirs = [
             "Internal" => LOG_PATH . "Internal" . D,
@@ -1862,41 +1864,113 @@ if (function_exists("cli_test") === !1) {
 includeStructure($NODE_STRUCTURE, $LOCAL_PATH, $NODE_REQUIRE);
 unset($NODE_STRUCTURE, $NODE_REQUIRE);
 
-# Controls.
-if (PHP_SAPI === "cli" && $LOCAL_PATH === ROOT_PATH) {
-    if (isset($argv[1])) {
-        $cli_func = "cli_{$argv[1]}";
-        if (function_exists($cli_func)) {
-            $r = $cli_func(false, array_slice($argv, 2));
+if (!function_exists("executeRun")) {
+    function executeRun(string $entry): void
+    {
+        if (preg_match('/^([^:]+)::([^(]+)(?:\((.*)\))?$/', $entry, $matches)) {
+            $class = $matches[1];
+            $method = $matches[2];
+            $argString = $matches[3] ?? "";
+
+            if (class_exists($class) && method_exists($class, $method)) {
+                $arguments = [];
+                if ($argString) {
+                    $arguments = array_map("trim", explode(",", $argString));
+                    $arguments = array_map(function ($arg) {
+                        if (preg_match('/^[\'"](.*)[\'"]$/', $arg, $m)) {
+                            return $m[1];
+                        }
+                        return $arg;
+                    }, $arguments);
+                }
+
+                call_user_func_array([$class, $method], $arguments);
+                return;
+            }
         }
-        unset($cli_func);
+
+        if (str_contains($entry, "::")) {
+            [$class, $method] = explode("::", $entry, 2);
+
+            if (class_exists($class)) {
+                if (method_exists($class, $method)) {
+                    call_user_func([$class, $method]);
+                    return;
+                } else {
+                    r("Entry method {$entry} not found", "Error");
+                }
+            } else {
+                r("Entry class {$class} not found", "Error");
+            }
+        } elseif (class_exists($entry)) {
+            $instance = new $entry();
+
+            if (method_exists($instance, "__invoke")) {
+                $instance();
+            } elseif (method_exists($instance, "run")) {
+                $instance->run();
+            } elseif (method_exists($instance, "execute")) {
+                $instance->execute();
+            } else {
+                r("Entry class {$entry} has no executable method", "Error");
+            }
+            return;
+        } elseif (function_exists($entry)) {
+            $entry();
+            return;
+        }
+
+        r("Invalid entry point: {$entry}", "Error");
+        http_response_code(500);
+
+        die("Application entry point configuration error [node.json -> run].");
     }
-    $r ??= cli_help(false, []);
+}
 
-    $u = microtime(true) - $TIME_START;
-    $m = memory_get_peak_usage() / 1048576;
+if ($LOCAL_PATH === ROOT_PATH) {
+    # Run all included nodes by inclusion order.
+    if (!empty($RUN_STRING) && ($RUN_STRING = array_reverse($RUN_STRING))) {
+        foreach (array_filter($RUN_STRING, fn($x) => !empty($x)) as $run) {
+            executeRun($run);
+        }
+        unset($run);
+    }
 
-    $title = NODE_NAME . " // PHP " . PHP_VERSION;
-    printf("{$title}, Time: %.4fs, RAM: %.2fMB", $u, $m);
+    if (PHP_SAPI === "cli") {
+        if (isset($argv[1])) {
+            $cli_func = "cli_{$argv[1]}";
+            if (function_exists($cli_func)) {
+                $r = $cli_func(false, array_slice($argv, 2));
+            }
+            unset($cli_func);
+        }
+        $r ??= cli_help(false, []);
 
-    unset($TIME_START, $LOCAL_PATH, $u, $m, $title);
+        $u = microtime(true) - $TIME_START;
+        $m = memory_get_peak_usage() / 1048576;
 
-    echo ", User defined global scope variables: [" .
-        implode(
-            ",",
-            array_diff(array_keys(get_defined_vars()), [
-                "r",
-                "argv",
-                "argc",
-                "_GET",
-                "_POST",
-                "_COOKIE",
-                "_FILES",
-                "_SERVER",
-            ]),
-        ) .
-        "]\n\n";
+        $title = NODE_NAME . " // PHP " . PHP_VERSION;
+        printf("{$title}, Time: %.4fs, RAM: %.2fMB", $u, $m);
 
-    unset($ROOT_PATHS);
-    die("{$r}\n");
+        unset($TIME_START, $LOCAL_PATH, $u, $m, $title);
+
+        echo ", User defined global scope variables: [" .
+            implode(
+                ",",
+                array_diff(array_keys(get_defined_vars()), [
+                    "r",
+                    "argv",
+                    "argc",
+                    "_GET",
+                    "_POST",
+                    "_COOKIE",
+                    "_FILES",
+                    "_SERVER",
+                ]),
+            ) .
+            "]\n\n";
+
+        unset($ROOT_PATHS);
+        die("{$r}\n");
+    }
 }
