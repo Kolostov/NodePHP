@@ -841,7 +841,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     return "E: Cannot create zip file\n";
                 }
 
-                $exclude = ["Backup", "Log", "Deprecated", "vendor", "node_modules"];
+                $exclude = [
+                    "Backup",
+                    "Log",
+                    "Deprecated",
+                    "vendor",
+                    "node_modules",
+                ];
                 $added = 0;
 
                 $iterator = new RecursiveIteratorIterator(
@@ -887,8 +893,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     " MB)\n";
             }
 
-            function createTarBackup(string $backupDir, string $backupName): string
-            {
+            function createTarBackup(
+                string $backupDir,
+                string $backupName,
+            ): string {
                 $tarName = "{$backupDir}{$backupName}.tar.gz";
 
                 if (file_exists($tarName)) {
@@ -897,7 +905,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                 // Create exclude file for tar
                 $excludeFile = "{$backupDir}exclude.txt";
-                $excludes = ["Backup", "Log", "Deprecated", "vendor", "node_modules"];
+                $excludes = [
+                    "Backup",
+                    "Log",
+                    "Deprecated",
+                    "vendor",
+                    "node_modules",
+                ];
 
                 file_put_contents($excludeFile, implode("\n", $excludes));
 
@@ -937,12 +951,18 @@ if ($LOCAL_PATH === ROOT_PATH) {
             function countFilesInTar(string $tarFile): int
             {
                 exec(
-                    "tar -tzf " . escapeshellarg($tarFile) . " 2>/dev/null | wc -l",
+                    "tar -tzf " .
+                        escapeshellarg($tarFile) .
+                        " 2>/dev/null | wc -l",
                     $output,
                     $returnCode,
                 );
 
-                if ($returnCode === 0 && isset($output[0]) && is_numeric($output[0])) {
+                if (
+                    $returnCode === 0 &&
+                    isset($output[0]) &&
+                    is_numeric($output[0])
+                ) {
                     return (int) $output[0];
                 }
 
@@ -987,7 +1007,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                             $fileName = basename($foundFile, ".php");
                             $rPath = str_replace(ROOT_PATH, "", $path);
 
-                            $deprecatedDir = ROOT_PATH . "Deprecated" . D . $rPath . D;
+                            $deprecatedDir =
+                                ROOT_PATH . "Deprecated" . D . $rPath . D;
                             $deprecatedFile = "{$deprecatedDir}{$fileName}_{$timestamp}.php";
 
                             if (!is_dir($deprecatedDir)) {
@@ -1144,7 +1165,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     strpos(trim(file_get_contents($gitIgnore)), "!node.php");
 
                 if (!$mode) {
-                    return "Git targeting " . ($isNodeMode ? "Node" : "Project") . "\n";
+                    return "Git targeting " .
+                        ($isNodeMode ? "Node" : "Project") .
+                        "\n";
                 }
 
                 $target = ucfirst(strtolower($mode));
@@ -1152,7 +1175,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                 if (
                     ($isNodeMode && $target === "Node") ||
-                    (!$isNodeMode && $target === "Project" && file_exists($gitIgnore))
+                    (!$isNodeMode &&
+                        $target === "Project" &&
+                        file_exists($gitIgnore))
                 ) {
                     return "Git already targeting {$target}\n";
                 }
@@ -1175,7 +1200,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     $targetFile = "{$targetDir}{$file}";
 
                     if (!$flagMoveToSource) {
-                        if (file_exists($rootFile) && !file_exists($sourceFile)) {
+                        if (
+                            file_exists($rootFile) &&
+                            !file_exists($sourceFile)
+                        ) {
                             $r .= "mv root: {$rootFile} to {$sourceFile}\n";
                             rename($rootFile, $sourceFile);
                         }
@@ -1228,7 +1256,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $info[] = "Structure: " . count(NODE_STRUCTURE) . " categories";
 
                 $loaded =
-                    count(get_declared_classes()) - count(get_declared_interfaces());
+                    count(get_declared_classes()) -
+                    count(get_declared_interfaces());
                 $info[] = "Loaded: {$loaded} classes";
 
                 $logFiles = getAllLogFiles();
@@ -1269,10 +1298,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     # Search functions
                     foreach (get_defined_functions() as $type => $functions) {
                         foreach ($functions as $function) {
-                            if (strpos(strtolower($function), $search) !== false) {
+                            if (
+                                strpos(strtolower($function), $search) !== false
+                            ) {
                                 $key = "function:{$function}";
                                 if (!isset($seen[$key])) {
-                                    $source = $type === "user" ? "user" : "internal";
+                                    $source =
+                                        $type === "user" ? "user" : "internal";
                                     $matches[] = "[function:{$source}] {$function}()";
                                     $seen[$key] = true;
                                 }
@@ -1292,7 +1324,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                                 $modifiers = [];
                                 $reflection->isAbstract() &&
                                     ($modifiers[] = "abstract");
-                                $reflection->isFinal() && ($modifiers[] = "final");
+                                $reflection->isFinal() &&
+                                    ($modifiers[] = "final");
                                 $mod = $modifiers
                                     ? "[" . implode(" ", $modifiers) . "] "
                                     : "";
@@ -1333,7 +1366,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     }
 
                     # Search constants with value preview
-                    foreach (get_defined_constants(true) as $scope => $constants) {
+                    foreach (
+                        get_defined_constants(true)
+                        as $scope => $constants
+                    ) {
                         foreach ($constants as $name => $value) {
                             if (strpos(strtolower($name), $search) !== false) {
                                 $key = "constant:{$name}";
@@ -1374,9 +1410,15 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     foreach (callStructure() as $c) {
                         if ($c[0] === $call) {
                             if ($resources = glob($c[1] . D . "*.*")) {
-                                $r = "Found (" . count($resources) . ") resources:\n";
+                                $r =
+                                    "Found (" .
+                                    count($resources) .
+                                    ") resources:\n";
                                 foreach ($resources as $fp) {
-                                    $mtime = date("Y-m-d H:i:s", filemtime($fp));
+                                    $mtime = date(
+                                        "Y-m-d H:i:s",
+                                        filemtime($fp),
+                                    );
                                     $fsize = number_format(filesize($fp));
                                     $r .= "{$mtime} $fp, {$fsize} bytes\n";
                                 }
@@ -1445,7 +1487,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 }
 
                 $size = number_format($totalSize / (1024 * 1024), 2);
-                $output .= "\nTotal: " . count($logFiles) . " files, {$size} MB\n";
+                $output .=
+                    "\nTotal: " . count($logFiles) . " files, {$size} MB\n";
 
                 return $output;
             }
@@ -1503,11 +1546,15 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         $timestamp,
                         $type,
                         $function,
-                        substr($message, 0, 40) . (strlen($message) > 40 ? "..." : ""),
+                        substr($message, 0, 40) .
+                            (strlen($message) > 40 ? "..." : ""),
                     );
 
                     if (isset($entry["data"]) && !empty($entry["data"])) {
-                        $dataStr = json_encode($entry["data"], JSON_PRETTY_PRINT);
+                        $dataStr = json_encode(
+                            $entry["data"],
+                            JSON_PRETTY_PRINT,
+                        );
                         $lines = explode("\n", $dataStr);
                         foreach (array_slice($lines, 0, 3) as $line) {
                             $output .= "  {$line}\n";
@@ -1535,7 +1582,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                 if ($target === "all") {
                     foreach ($logFiles as $log) {
-                        if (file_exists($log["path"]) && is_writable($log["path"])) {
+                        if (
+                            file_exists($log["path"]) &&
+                            is_writable($log["path"])
+                        ) {
                             $size = filesize($log["path"]);
                             if (file_put_contents($log["path"], "") !== false) {
                                 $cleared++;
@@ -1550,7 +1600,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                 foreach ($logFiles as $log) {
                     if (
-                        ($log["type"] === $target || $log["path"] === $target) &&
+                        ($log["type"] === $target ||
+                            $log["path"] === $target) &&
                         file_exists($log["path"]) &&
                         is_writable($log["path"])
                     ) {
@@ -1584,7 +1635,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     return "E: File not found: {$file}\n";
                 }
 
-                $content = shell_exec("tail -n {$lines} " . escapeshellarg($file));
+                $content = shell_exec(
+                    "tail -n {$lines} " . escapeshellarg($file),
+                );
 
                 return "Last {$lines} lines of {$file}:\n\n" .
                     ($content ?: "No content or error reading file\n");
@@ -1636,11 +1689,16 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                 try {
                     chdir("{$newNodePath}Git" . D . "Node");
-                    exec("git clone {$nodeGitUrl} . 2>&1", $nodeOutput, $nodeCode);
+                    exec(
+                        "git clone {$nodeGitUrl} . 2>&1",
+                        $nodeOutput,
+                        $nodeCode,
+                    );
 
                     if ($nodeCode !== 0) {
                         throw new Exception(
-                            "Failed to clone node: " . implode("\n", $nodeOutput),
+                            "Failed to clone node: " .
+                                implode("\n", $nodeOutput),
                         );
                     }
 
@@ -1655,7 +1713,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                     if ($projectCode !== 0) {
                         throw new Exception(
-                            "Failed to clone project: " . implode("\n", $projectOutput),
+                            "Failed to clone project: " .
+                                implode("\n", $projectOutput),
                         );
                     }
 
@@ -1663,7 +1722,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                     chdir($newNodePath);
 
-                    $nodeFile = "{$newNodePath}Git" . D . "Node" . D . "node.php";
+                    $nodeFile =
+                        "{$newNodePath}Git" . D . "Node" . D . "node.php";
                     $symlink = "{$newNodePath}Git" . D . "Node" . D . "node";
 
                     if (file_exists($nodeFile)) {
@@ -1681,12 +1741,17 @@ if ($LOCAL_PATH === ROOT_PATH) {
                             if (symlink("node.php", "node")) {
                                 $output .= "✓ New node symlink created\n";
                             } else {
-                                $output .= "Note: Could not create node symlink\n";
+                                $output .=
+                                    "Note: Could not create node symlink\n";
                             }
                         }
 
                         chdir($newNodePath);
-                        exec("php node.php git Node 2>&1", $gitOutput, $gitCode);
+                        exec(
+                            "php node.php git Node 2>&1",
+                            $gitOutput,
+                            $gitCode,
+                        );
 
                         if ($gitCode === 0) {
                             $output .= "✓ Node set to Node mode\n";
@@ -1724,7 +1789,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 chdir($originalDir);
 
                 $output .= "\nNew node created at: {$newNodePath}\n";
-                $output .= "To enter: cd ../" . escapeshellarg($folderName) . "\n";
+                $output .=
+                    "To enter: cd ../" . escapeshellarg($folderName) . "\n";
                 $output .= "To start: php node serve\n";
 
                 return $output;
@@ -1741,10 +1807,22 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         ? trim($mcs[1])
                         : null;
                 } else {
-                    $nConf = ROOT_PATH . "Git" . D . "Node" . D . ".git" . D . "config";
+                    $nConf =
+                        ROOT_PATH .
+                        "Git" .
+                        D .
+                        "Node" .
+                        D .
+                        ".git" .
+                        D .
+                        "config";
                     if (file_exists($nConf)) {
                         $cfg = file_get_contents($nConf);
-                        $result["node"] = preg_match("/url\s*=\s*(.+)/", $cfg, $mcs)
+                        $result["node"] = preg_match(
+                            "/url\s*=\s*(.+)/",
+                            $cfg,
+                            $mcs,
+                        )
                             ? trim($mcs[1])
                             : null;
                     }
@@ -1812,7 +1890,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                             foreach ($migrations as $migration) {
                                 $fileName = basename($migration, ".php");
-                                $status = in_array($fileName, $tracking[$type] ?? [])
+                                $status = in_array(
+                                    $fileName,
+                                    $tracking[$type] ?? [],
+                                )
                                     ? "APPLIED"
                                     : "PENDING";
                                 $output .= "  {$fileName}: {$status}\n";
@@ -1857,7 +1938,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $applied = [];
 
                 foreach (["SQL", "PHP"] as $type) {
-                    $migrations = glob($migrationPath . D . $type . D . "*.php");
+                    $migrations = glob(
+                        $migrationPath . D . $type . D . "*.php",
+                    );
                     sort($migrations);
 
                     foreach ($migrations as $migration) {
@@ -1889,9 +1972,14 @@ if ($LOCAL_PATH === ROOT_PATH) {
                                     }
                                 }
                             } else {
-                                $sqlFile = str_replace(".php", ".sql", $migration);
+                                $sqlFile = str_replace(
+                                    ".php",
+                                    ".sql",
+                                    $migration,
+                                );
                                 if (file_exists($sqlFile)) {
-                                    $output .= "\t[SQL execution would happen here]\n";
+                                    $output .=
+                                        "\t[SQL execution would happen here]\n";
                                 }
                             }
 
@@ -1909,7 +1997,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         json_encode($tracking, JSON_PRETTY_PRINT),
                     );
                     $output .=
-                        "\nApplied migrations: " . implode(", ", $applied) . "\n";
+                        "\nApplied migrations: " .
+                        implode(", ", $applied) .
+                        "\n";
                 } else {
                     $output .= "\nNo new migrations to apply.\n";
                 }
@@ -1969,14 +2059,17 @@ if ($LOCAL_PATH === ROOT_PATH) {
                                     $migrationFile,
                                 );
                                 if (file_exists($sqlFile)) {
-                                    $output .= "  [SQL rollback would happen here]\n";
+                                    $output .=
+                                        "  [SQL rollback would happen here]\n";
                                 }
                             }
 
                             $key = array_search($fileName, $tracking[$type]);
                             if ($key !== false) {
                                 unset($tracking[$type][$key]);
-                                $tracking[$type] = array_values($tracking[$type]);
+                                $tracking[$type] = array_values(
+                                    $tracking[$type],
+                                );
                             }
 
                             $rolledBack[] = $fileName;
@@ -2006,8 +2099,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return $output;
             }
 
-            function createMigration(string $migrationPath, string $name): string
-            {
+            function createMigration(
+                string $migrationPath,
+                string $name,
+            ): string {
                 $timestamp = date("Ymd_His");
                 $safeName = preg_replace("/[^a-zA-Z0-9_]/", "_", $name);
                 $fileName = "{$timestamp}_{$safeName}";
@@ -2026,7 +2121,11 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     mkdir($migrationDir, 0777, true);
                 }
 
-                $className = str_replace(["-", "_"], "", ucwords($safeName, "-_"));
+                $className = str_replace(
+                    ["-", "_"],
+                    "",
+                    ucwords($safeName, "-_"),
+                );
 
                 if ($type === "PHP") {
                     $content = <<<PHP
@@ -2103,11 +2202,20 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         if ($c[0] === $call) {
                             if (strpos($c[1], "Migration") !== false) {
                                 $timestamp = date("Ymd_His");
-                                $safeName = preg_replace("/[^a-zA-Z0-9_]/", "_", $name);
+                                $safeName = preg_replace(
+                                    "/[^a-zA-Z0-9_]/",
+                                    "_",
+                                    $name,
+                                );
                                 $migrationName = "{$timestamp}_{$safeName}";
 
-                                $fc = generateBoilerplate($c[1], $safeName, ROOT_PATH);
-                                $fn = $c[1] . D . "{$migrationName}{$fc[1]}.php";
+                                $fc = generateBoilerplate(
+                                    $c[1],
+                                    $safeName,
+                                    ROOT_PATH,
+                                );
+                                $fn =
+                                    $c[1] . D . "{$migrationName}{$fc[1]}.php";
 
                                 if (strpos($c[1], "Migration/PHP") !== false) {
                                     $className = str_replace(
@@ -2140,7 +2248,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                                 return "Migration file created at {$fn} size {$size} bytes.\n";
                             } elseif (strpos($c[1], "Public") !== false) {
-                                $ext = strpos($name, ".") !== false ? "" : ".php";
+                                $ext =
+                                    strpos($name, ".") !== false ? "" : ".php";
                                 $fn = $c[1] . D . $name . $ext;
                                 if (!file_exists($fn)) {
                                     $size = file_put_contents($fn, "\n");
@@ -2150,7 +2259,11 @@ if ($LOCAL_PATH === ROOT_PATH) {
                                 }
                             } else {
                                 // Regular resource creation
-                                $fc = generateBoilerplate($c[1], $name, ROOT_PATH);
+                                $fc = generateBoilerplate(
+                                    $c[1],
+                                    $name,
+                                    ROOT_PATH,
+                                );
                                 $fn = $c[1] . D . "{$name}{$fc[1]}.php";
                                 if (!file_exists($fn)) {
                                     $size = file_put_contents($fn, $fc[0]);
@@ -2269,7 +2382,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
                                 $passed++;
                             } catch (Exception $e) {
                                 $output .=
-                                    "\t✗ {$testFunc}(): " . $e->getMessage() . "\n";
+                                    "\t✗ {$testFunc}(): " .
+                                    $e->getMessage() .
+                                    "\n";
                                 $failed++;
                             }
                         }
@@ -2299,7 +2414,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                             }
                         }
                     } catch (Exception $e) {
-                        $output .= "\t✗ Error loading test: " . $e->getMessage() . "\n";
+                        $output .=
+                            "\t✗ Error loading test: " .
+                            $e->getMessage() .
+                            "\n";
                         $failed++;
                     }
                     ob_end_clean();
@@ -2396,7 +2514,12 @@ if ($LOCAL_PATH === ROOT_PATH) {
                             $sectionContent = rtrim($sectionContent);
 
                             // Skip if already wrapped
-                            if (!preg_match("/^\s*include_once\s+/", $sectionContent)) {
+                            if (
+                                !preg_match(
+                                    "/^\s*include_once\s+/",
+                                    $sectionContent,
+                                )
+                            ) {
                                 // Remove indentation relative to marker for saving
                                 $cleanContent = removeRelativeIndentation(
                                     $sectionContent,
@@ -2404,7 +2527,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                                 );
 
                                 // Save to file with clean indentation
-                                $sectionFile = ROOT_PATH . "node.{$sectionName}.php";
+                                $sectionFile =
+                                    ROOT_PATH . "node.{$sectionName}.php";
                                 file_put_contents(
                                     $sectionFile,
                                     "<?php declare(strict_types=1);\n\n{$cleanContent}\n",
@@ -2473,7 +2597,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                             $beginMatch,
                         )
                     ) {
-                        $markerIndent = $beginMatch[1]; // Indentation of the marker
+                        $markerIndent = $beginMatch[1];
                         $sectionName = $beginMatch[2];
                         $startIndex = $i;
 
@@ -2509,18 +2633,27 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                             if ($foundEnd) {
                                 // Load section from file
-                                $sectionFile = ROOT_PATH . "node.{$sectionName}.php";
+                                $sectionFile =
+                                    ROOT_PATH . "node.{$sectionName}.php";
 
                                 if (file_exists($sectionFile)) {
-                                    $sectionContent = file_get_contents($sectionFile);
+                                    $sectionContent = file_get_contents(
+                                        $sectionFile,
+                                    );
+
+                                    // Remove PHP opening tag with strict_types declaration
+                                    // Handle both possible formats
                                     $sectionContent = preg_replace(
                                         [
-                                            '/^<\?php\s*\n?/',
-                                            '/^<\?php declare(strict_types=1);\s*\n?/',
+                                            '/^<\?php\s+declare\(strict_types=1\);\s*\n+/',
+                                            '/^<\?php declare\(strict_types=1\);\s*\n+/',
+                                            '/^<\?php\s*\n+/',
                                         ],
                                         "",
                                         $sectionContent,
+                                        1, // Only replace once at the beginning
                                     );
+
                                     $sectionContent = rtrim($sectionContent);
 
                                     if (!empty($sectionContent)) {
@@ -2545,14 +2678,22 @@ if ($LOCAL_PATH === ROOT_PATH) {
                                         $i = $endIndex; // Skip processed lines
                                     } else {
                                         // Empty content, keep as-is
-                                        for ($k = $startIndex; $k <= $endIndex; $k++) {
+                                        for (
+                                            $k = $startIndex;
+                                            $k <= $endIndex;
+                                            $k++
+                                        ) {
                                             $newLines[] = $lines[$k];
                                         }
                                         $i = $endIndex;
                                     }
                                 } else {
                                     // File missing, keep as-is
-                                    for ($k = $startIndex; $k <= $endIndex; $k++) {
+                                    for (
+                                        $k = $startIndex;
+                                        $k <= $endIndex;
+                                        $k++
+                                    ) {
                                         $newLines[] = $lines[$k];
                                     }
                                     $i = $endIndex;
@@ -2607,8 +2748,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return implode("\n", $cleanedLines);
             }
 
-            function addRelativeIndentation(string $content, string $baseIndent): string
-            {
+            function addRelativeIndentation(
+                string $content,
+                string $baseIndent,
+            ): string {
                 if (empty($baseIndent)) {
                     return $content;
                 }
@@ -2617,7 +2760,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $indentedLines = [];
 
                 foreach ($lines as $line) {
-                    $indentedLines[] = $line === "" ? "" : "{$baseIndent}{$line}";
+                    $indentedLines[] =
+                        $line === "" ? "" : "{$baseIndent}{$line}";
                 }
 
                 return implode("\n", $indentedLines);
