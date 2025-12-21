@@ -607,8 +607,13 @@ function includeStructure(
 function callStructure(): array
 {
     static $calls = [];
+    static $structure = [];
 
-    return walkStructure(
+    if (!empty($structure)) {
+        return $structure;
+    }
+
+    $structure = walkStructure(
         NODE_STRUCTURE,
         function (string $path, mixed $v) use (&$calls): array {
             if (glob($path . D . "*", GLOB_ONLYDIR)) {
@@ -635,6 +640,7 @@ function callStructure(): array
         "",
         ROOT_PATH,
     );
+    return $structure;
 }
 # call_structure end
 
@@ -917,6 +923,63 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             return 0;
         }
+
+        function test_cli_backup(): int
+        {
+            $backupDir = ROOT_PATH . "Backup" . D;
+
+            if (!is_dir($backupDir)) {
+                return 1;
+            }
+
+            if (!is_writable($backupDir)) {
+                return 2;
+            }
+
+            $hasZip =
+                extension_loaded("zip") ||
+                (function_exists("class_exists") && class_exists("ZipArchive"));
+
+            if (!$hasZip) {
+                exec("which tar 2>/dev/null", $tarOutput, $tarCode);
+                if ($tarCode !== 0) {
+                    return 3;
+                }
+            }
+
+            $backupName = "TEST_BACKUP_" . date("Ymd_His") . "_" . uniqid();
+            $expectedExt = $hasZip ? ".zip" : ".tar.gz";
+            $expectedFile = $backupDir . $backupName . $expectedExt;
+
+            if (file_exists($expectedFile)) {
+                if (!unlink($expectedFile)) {
+                    return 4;
+                }
+            }
+
+            $result = cli_backup(false, [$backupName]);
+
+            if (strpos($result, "E: ") === 0) {
+                return 5;
+            }
+
+            if (strpos($result, "Backup created") === false) {
+                return 6;
+            }
+
+            if (!file_exists($expectedFile)) {
+                return 7;
+            }
+
+            $fileSize = filesize($expectedFile);
+            if ($fileSize === 0 || $fileSize < 100) {
+                return 8;
+            }
+
+            unlink($expectedFile);
+
+            return 0;
+        }
         # cli_backup end
 
         # cli_deprecate begin
@@ -972,6 +1035,44 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return "E: Invalid resource name '{$call}'\n";
             }
             return "E: Missing arguments. Usage: deprecate <resource> <name>\n";
+        }
+
+        function test_cli_deprecate(): int
+        {
+            $r = "State";
+            $n = "SomeName";
+            if (str_starts_with(cli_new(false, [$r, $n]), "E:")) {
+                return 1;
+            }
+
+            $structures = callStructure();
+            $path = array_first(array_filter($structures, fn($x) => $x[0] == $r))[1];
+
+            $nFile = "{$path}" . D . "{$n}{$r}.php";
+            if (!file_exists($nFile)) {
+                return 2;
+            }
+
+            if (str_starts_with(cli_deprecate(false, [$r, $n]), "E:")) {
+                return 3;
+            }
+
+            unlink($nFile);
+
+            $dFile = ROOT_PATH . "Deprecated" . D . str_replace(ROOT_PATH, "", $nFile);
+            $gFile = substr($dFile, 0, strlen($dFile) - 4) . "*.php";
+            $glob = glob($gFile);
+            if (empty($glob)) {
+                return 4;
+            }
+            $dFile = array_first($glob);
+
+            if (!file_exists($dFile)) {
+                return 5;
+            }
+            unlink($dFile);
+
+            return 0;
         }
         # cli_deprecate end
 
@@ -1081,6 +1182,105 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 default:
                     return "E: Unknown action. Available: list, set, get\n";
             }
+        }
+
+        function test_cli_env(): int
+        {
+            $envFile = ROOT_PATH . ".env";
+            $backup = null;
+
+            if (file_exists($envFile)) {
+                $backup = file_get_contents($envFile);
+            }
+
+            file_put_contents(
+                $envFile,
+                "# Environment variables\nTEST_KEY=test_value\nANOTHER_KEY=another_value\n",
+            );
+
+            if (str_starts_with(cli_env(true, []), "<action>") === false) {
+                file_put_contents($envFile, $backup);
+                return 1;
+            }
+
+            $listResult = cli_env(false, ["list"]);
+            if (
+                strpos($listResult, "TEST_KEY=test_value") === false ||
+                strpos($listResult, "ANOTHER_KEY=another_value") === false
+            ) {
+                file_put_contents($envFile, $backup);
+                return 2;
+            }
+
+            $setResult = cli_env(false, ["set", "TEST_KEY=new_value"]);
+            if (strpos($setResult, "Set TEST_KEY=new_value") === false) {
+                file_put_contents($envFile, $backup);
+                return 3;
+            }
+
+            $getResult = cli_env(false, ["get", "TEST_KEY"]);
+            if ($getResult !== "TEST_KEY=new_value\n") {
+                file_put_contents($envFile, $backup);
+                return 4;
+            }
+
+            $setNewResult = cli_env(false, ["set", "NEW_KEY=new_value_123"]);
+            if (strpos($setNewResult, "Set NEW_KEY=new_value_123") === false) {
+                file_put_contents($envFile, $backup);
+                return 5;
+            }
+
+            $listResult2 = cli_env(false, ["list"]);
+            if (strpos($listResult2, "NEW_KEY=new_value_123") === false) {
+                file_put_contents($envFile, $backup);
+                return 6;
+            }
+
+            $missingKeyResult = cli_env(false, ["get", "MISSING_KEY"]);
+            if (strpos($missingKeyResult, "E: Key 'MISSING_KEY' not found") === false) {
+                file_put_contents($envFile, $backup);
+                return 7;
+            }
+
+            $invalidSetResult = cli_env(false, ["set"]);
+            if (strpos($invalidSetResult, "E: Usage: env set KEY=VALUE") === false) {
+                file_put_contents($envFile, $backup);
+                return 8;
+            }
+
+            $invalidFormatResult = cli_env(false, ["set", "NO_EQUALS_SIGN"]);
+            if (
+                strpos($invalidFormatResult, "E: Invalid format. Use KEY=VALUE") ===
+                false
+            ) {
+                file_put_contents($envFile, $backup);
+                return 9;
+            }
+
+            $invalidGetResult = cli_env(false, ["get"]);
+            if (strpos($invalidGetResult, "E: Usage: env get KEY") === false) {
+                file_put_contents($envFile, $backup);
+                return 10;
+            }
+
+            $unknownActionResult = cli_env(false, ["unknown"]);
+            if (
+                strpos(
+                    $unknownActionResult,
+                    "E: Unknown action. Available: list, set, get",
+                ) === false
+            ) {
+                file_put_contents($envFile, $backup);
+                return 11;
+            }
+
+            if ($backup !== null) {
+                file_put_contents($envFile, $backup);
+            } else {
+                unlink($envFile);
+            }
+
+            return 0;
         }
         # cli_env end
 
@@ -2012,6 +2212,119 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return "Created SQL migration:\n  {$sqlFile}\n  {$downSqlFile}\n  {$phpFilePath}\n";
             }
         }
+
+        function test_cli_migrate(): int
+        {
+            $migrationPath = ROOT_PATH . "Migration";
+            $trackingFile = ROOT_PATH . ".migrations.json";
+
+            $backupTracking = null;
+            $backupMigrationDir = null;
+
+            if (file_exists($trackingFile)) {
+                $backupTracking = file_get_contents($trackingFile);
+            }
+
+            if (is_dir($migrationPath)) {
+                $backupMigrationDir = true;
+                $oldFiles = glob($migrationPath . D . "*" . D . "*");
+                foreach ($oldFiles as $file) {
+                    if (is_file($file)) {
+                        rename($file, $file . ".backup");
+                    }
+                }
+            } else {
+                mkdir($migrationPath, 0777, true);
+            }
+
+            file_put_contents(
+                $trackingFile,
+                json_encode(["SQL" => [], "PHP" => []], JSON_PRETTY_PRINT),
+            );
+
+            if (str_starts_with(cli_migrate(true, []), "<action>") === false) {
+                restoreMigrationState($backupTracking, $backupMigrationDir);
+                return 1;
+            }
+
+            $statusResult = cli_migrate(false, ["status"]);
+            if (strpos($statusResult, "Migration Status:") === false) {
+                restoreMigrationState($backupTracking, $backupMigrationDir);
+                return 2;
+            }
+
+            $unknownActionResult = cli_migrate(false, ["unknown_action"]);
+            if (strpos($unknownActionResult, "E: Unknown action") === false) {
+                restoreMigrationState($backupTracking, $backupMigrationDir);
+                return 3;
+            }
+
+            $upResult = cli_migrate(false, ["up"]);
+            if (strpos($upResult, "No new migrations to apply") === false) {
+                restoreMigrationState($backupTracking, $backupMigrationDir);
+                return 4;
+            }
+
+            $downResult = cli_migrate(false, ["down"]);
+            if (strpos($downResult, "No migrations to roll back") === false) {
+                restoreMigrationState($backupTracking, $backupMigrationDir);
+                return 5;
+            }
+
+            $createMissingNameResult = cli_migrate(false, ["create"]);
+            if (
+                strpos($createMissingNameResult, "E: Missing migration name") === false
+            ) {
+                restoreMigrationState($backupTracking, $backupMigrationDir);
+                return 6;
+            }
+
+            restoreMigrationState($backupTracking, $backupMigrationDir);
+
+            return 0;
+        }
+
+        function restoreMigrationState($backupTracking, $backupMigrationDir): void
+        {
+            $migrationPath = ROOT_PATH . "Migration";
+            $trackingFile = ROOT_PATH . ".migrations.json";
+
+            if ($backupTracking !== null) {
+                file_put_contents($trackingFile, $backupTracking);
+            } else {
+                unlink($trackingFile);
+            }
+
+            if ($backupMigrationDir !== null) {
+                $oldFiles = glob($migrationPath . D . "*" . D . "*");
+                foreach ($oldFiles as $file) {
+                    if (is_file($file)) {
+                        unlink($file);
+                    }
+                }
+
+                $backupFiles = glob($migrationPath . D . "*" . D . "*.backup");
+                foreach ($backupFiles as $backupFile) {
+                    rename($backupFile, substr($backupFile, 0, -7));
+                }
+            } else {
+                $files = glob($migrationPath . D . "*" . D . "*");
+                foreach ($files as $file) {
+                    if (is_file($file)) {
+                        unlink($file);
+                    }
+                }
+
+                $subdirs = glob($migrationPath . D . "*", GLOB_ONLYDIR);
+                foreach ($subdirs as $dir) {
+                    rmdir($dir);
+                }
+
+                if (is_dir($migrationPath)) {
+                    rmdir($migrationPath);
+                }
+            }
+        }
         # cli_migrate end
 
         # cli_new begin
@@ -2088,6 +2401,94 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
             return "E: Missing argument(s), call new <resource> <name>\n";
         }
+
+        function test_cli_new(): int
+        {
+            $r = "State";
+            $n = "MyTestState";
+
+            $result = cli_new(false, [$r, $n]);
+
+            if (str_starts_with($result, "E:")) {
+                return 1;
+            }
+
+            if (strpos($result, "File created at") === false) {
+                return 2;
+            }
+
+            $structures = callStructure();
+            $path = null;
+            foreach ($structures as $structure) {
+                if ($structure[0] === $r) {
+                    $path = $structure[1];
+                    break;
+                }
+            }
+
+            if ($path === null) {
+                return 3;
+            }
+
+            $expectedFile = $path . D . $n . $r . ".php";
+            if (!file_exists($expectedFile)) {
+                return 4;
+            }
+
+            $fileSize = filesize($expectedFile);
+            if ($fileSize < 50) {
+                unlink($expectedFile);
+                return 5;
+            }
+
+            $content = file_get_contents($expectedFile);
+            if (strpos($content, "<?php declare(strict_types=1);") === false) {
+                unlink($expectedFile);
+                return 6;
+            }
+
+            if (strpos($content, "enum MyTestState") === false) {
+                unlink($expectedFile);
+                return 7;
+            }
+
+            $duplicateResult = cli_new(false, [$r, $n]);
+            if (
+                !str_starts_with($duplicateResult, "E: File") ||
+                strpos($duplicateResult, "already exists") === false
+            ) {
+                unlink($expectedFile);
+                return 8;
+            }
+
+            $missingArgsResult = cli_new(false, []);
+            if (!str_starts_with($missingArgsResult, "E: Missing argument")) {
+                unlink($expectedFile);
+                return 9;
+            }
+
+            $invalidResourceResult = cli_new(false, ["InvalidResourceName", $n]);
+            if (
+                !str_starts_with(
+                    $invalidResourceResult,
+                    "E: Could not create resource",
+                ) ||
+                strpos($invalidResourceResult, "invalid resource name") === false
+            ) {
+                unlink($expectedFile);
+                return 10;
+            }
+
+            $tooltip = cli_new(true, []);
+            if (strpos($tooltip, "<resource> <name>") === false) {
+                unlink($expectedFile);
+                return 11;
+            }
+
+            unlink($expectedFile);
+
+            return 0;
+        }
         # cli_new end
 
         # cli_serve begin
@@ -2128,11 +2529,19 @@ if ($LOCAL_PATH === ROOT_PATH) {
         function cli_test(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
-                return "<type> [filter] Runs tests of specified type with optional filter.";
+                return "<type|'internal'> [filter] Runs tests. Use 'internal' for built-in test_* functions.";
             }
 
-            $type = $argv[0] ?? "Unit"; // Default to Unit tests
+            if (empty($argv)) {
+                return "Usage: test <type|'internal'> [filter]\nTypes: Unit, Integration, Contract, E2E\nInternal: Runs all test_* functions\nExample: test internal cli_backup\n";
+            }
+
+            $type = $argv[0] ?? "Unit";
             $filter = $argv[1] ?? "";
+
+            if ($type === "internal") {
+                return runInternalTests($filter);
+            }
 
             $testTypes = ["Unit", "Integration", "Contract", "E2E"];
 
@@ -2183,11 +2592,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     foreach ($testFunctions as $testFunc) {
                         $total++;
                         try {
-                            $testFunc();
-                            $output .= "\t✓ {$testFunc}()\n";
+                            $result = $testFunc();
+                            $output .=
+                                "    " . trim($result) . " :: OK {$testFunc}()\n";
                             $passed++;
                         } catch (Exception $e) {
-                            $output .= "\t✗ {$testFunc}(): " . $e->getMessage() . "\n";
+                            $output .=
+                                "    FAIL {$testFunc}(): " . $e->getMessage() . "\n";
                             $failed++;
                         }
                     }
@@ -2204,11 +2615,11 @@ if ($LOCAL_PATH === ROOT_PATH) {
                                 try {
                                     $instance = $reflection->newInstance();
                                     $instance->run();
-                                    $output .= "\t✓ {$class}::run()\n";
+                                    $output .= "    OK {$class}::run()\n";
                                     $passed++;
                                 } catch (Exception $e) {
                                     $output .=
-                                        "\t✗ {$class}::run(): " .
+                                        "    FAIL {$class}::run(): " .
                                         $e->getMessage() .
                                         "\n";
                                     $failed++;
@@ -2217,10 +2628,96 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         }
                     }
                 } catch (Exception $e) {
-                    $output .= "\t✗ Error loading test: " . $e->getMessage() . "\n";
+                    $output .=
+                        "    FAIL Error loading test: " . $e->getMessage() . "\n";
                     $failed++;
                 }
                 ob_end_clean();
+            }
+
+            $output .= "\n";
+            $output .= "Results: {$passed}/{$total} passed, {$failed} failed\n";
+
+            if ($failed > 0) {
+                http_response_code(1);
+            }
+
+            return $output;
+        }
+
+        function runInternalTests(string $filter = ""): string
+        {
+            $output = "Running internal tests...\n\n";
+
+            $allFunctions = get_defined_functions()["user"];
+
+            $testFunctions = array_filter(
+                $allFunctions,
+                fn($functionName) => str_starts_with($functionName, "test_"),
+            );
+
+            if ($filter !== "") {
+                $searchName = "test_{$filter}";
+                $found = false;
+
+                foreach ($testFunctions as $testFunc) {
+                    if ($testFunc === $searchName) {
+                        $testFunctions = [$testFunc];
+                        $found = true;
+                        break;
+                    }
+                }
+
+                if (!$found) {
+                    $testFunctions = array_filter(
+                        $testFunctions,
+                        fn($functionName) => strpos($functionName, $searchName) !==
+                            false,
+                    );
+
+                    if (empty($testFunctions)) {
+                        return "No internal test found matching: {$filter}\n";
+                    }
+                }
+            }
+
+            natsort($testFunctions);
+
+            if (empty($testFunctions)) {
+                return "No internal tests found.\n";
+            }
+
+            $passed = 0;
+            $failed = 0;
+            $total = 0;
+
+            foreach ($testFunctions as $testFunc) {
+                $total++;
+
+                if (!function_exists($testFunc)) {
+                    $output .= "{$testFunc} failed: Function does not exist\n";
+                    $failed++;
+                    continue;
+                }
+
+                try {
+                    $result = $testFunc();
+
+                    if ($result === 0) {
+                        $output .= "{$testFunc} passed\n";
+                        $passed++;
+                    } else {
+                        $output .= "{$testFunc} failed: {$result}\n";
+                        $failed++;
+                    }
+                } catch (Exception $e) {
+                    $output .=
+                        "{$testFunc} failed: Exception - " . $e->getMessage() . "\n";
+                    $failed++;
+                } catch (Error $e) {
+                    $output .= "{$testFunc} failed: Error - " . $e->getMessage() . "\n";
+                    $failed++;
+                }
             }
 
             $output .= "\n";
