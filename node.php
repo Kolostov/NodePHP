@@ -545,56 +545,69 @@ unset($LOCAL_VENDOR);
 # vendor_autoload end
 
 # include_structure begin
-function includeStructure(
-    array $NODE_STRUCTURE,
-    string $LOCAL_PATH,
-    array $NODE_REQUIRE,
-): void {
-    walkStructure(
-        $NODE_STRUCTURE,
-        function (string $path): string {
-            if (strpos($path, "..") !== false) {
+function includeStructure(array $STRUCTURE, string $PATH, array $NODES): void
+{
+    $walk = function (string $path): string {
+        if (strpos($path, "..") !== false) {
+            return "";
+        }
+
+        # Exclude from runtimes
+        $e = ["Git", "Test", "Public", "Log", "Deprecated", "Backup"];
+        if (PHP_SAPI !== "cli") {
+            $e = [...$e, ...["Migration"]];
+        }
+
+        foreach ($e as $part) {
+            $ex = D . $part . D;
+            if (strpos($path, $ex)) {
                 return "";
             }
+        }
 
-            # Exclude from runtimes
-            $e = ["Git", "Test", "Public", "Log", "Deprecated", "Backup"];
-            if (PHP_SAPI !== "cli") {
-                $e = [...$e, ...["Migration"]];
-            }
+        if (is_dir($path)) {
+            if ($php = glob($path . D . "*.php")) {
+                foreach ($php as $fn) {
+                    include_once $fn;
 
-            foreach ($e as $part) {
-                $ex = D . $part . D;
-                if (strpos($path, $ex)) {
-                    return "";
+                    return $fn;
                 }
             }
+        }
+        return "";
+    };
 
-            if (is_dir($path)) {
-                if ($php = glob($path . D . "*.php")) {
-                    foreach ($php as $fn) {
-                        include_once $fn;
+    # Walk local resources.
+    walkStructure($STRUCTURE, $walk, "", $PATH);
 
-                        return $fn;
-                    }
-                }
-            }
-            return "";
-        },
-        "",
-        $LOCAL_PATH,
-    );
-
-    if (is_array($NODE_REQUIRE) && !empty($NODE_REQUIRE)) {
-        foreach ($NODE_REQUIRE as $node) {
-            $path = $LOCAL_PATH . ".." . D . $node;
+    # Include requested nodes.
+    if (is_array($NODES) && !empty($NODES)) {
+        foreach ($NODES as $node) {
+            $path = $PATH . ".." . D . $node;
 
             if ($check = realpath($path)) {
                 $file = $check . D . "node.php";
-                file_exists($file) && (include_once $file);
+                $size = filesize(__FILE__);
+
+                if (file_exists($file) && filesize($file) != $size) {
+                    include_once $file;
+                } else {
+                    # Impossible optimization:
+                    # 1. set new node location,
+                    # 2. goto to beginnong of current node.php,
+                    # 3. process as if in included node
+                    # 4. continue within this oop
+                    # instead we throw
+
+                    throw new Exception(
+                        "Node {$PATH} requires node that is different at: {$path}.\nFix this by updating php node git Node\ngit pull",
+                        0,
+                    );
+                }
             } else {
+                # Targeted directory simply did not exist.
                 throw new Exception(
-                    "Node {$LOCAL_PATH} requires node that does not exist at: {$path}. Fix this path or remove {$node} from node.json",
+                    "Node {$PATH} requires node that does not exist at: {$path}.\nFix this path or remove {$node} from node.json",
                     0,
                 );
             }
