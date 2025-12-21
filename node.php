@@ -381,6 +381,21 @@ try {
                 "Build" => "Build outputs",
             ],
         ],
+        "Database" => [
+            "Schema" => "Database structure definitions and DDL",
+            "Seed" => "Initial and test data population scripts",
+            "Fixture" => "Test data sets and factories",
+            "Procedure" => "Stored procedures and functions",
+            "View" => "Database view definitions",
+            "Trigger" => "Database trigger definitions",
+            "Connection" => "Database configuration and connection pools",
+            "Flat" => [
+                "Storage" => "File-based database implementations",
+                "JSON" => "JSON-based document storage",
+                "Serialized" => "PHP serialized data files",
+                "Index" => "Flat file indexing systems",
+            ],
+        ],
         "Migration" => [
             "Base" => "Abstract migration base class",
             "SQL" => "Raw SQL migration",
