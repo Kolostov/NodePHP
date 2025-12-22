@@ -746,7 +746,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # execute_run begin
         function executeRun(string $entry): void
         {
-            if (preg_match('/^([^:]+)::([^(]+)(?:\((.*)\))?$/', $entry, $matches)) {
+            if (
+                preg_match(
+                    '/^([^:]+)::([^(]+)(?:\((.*)\))?$/',
+                    $entry,
+                    $matches,
+                )
+            ) {
                 $class = $matches[1];
                 $method = $matches[2];
                 $argString = $matches[3] ?? "";
@@ -754,7 +760,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 if (class_exists($class) && method_exists($class, $method)) {
                     $arguments = [];
                     if ($argString) {
-                        $arguments = array_map("trim", explode(",", $argString));
+                        $arguments = array_map(
+                            "trim",
+                            explode(",", $argString),
+                        );
                         $arguments = array_map(function ($arg) {
                             if (preg_match('/^[\'"](.*)[\'"]$/', $arg, $m)) {
                                 return $m[1];
@@ -802,7 +811,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
             r("Invalid entry point: {$entry}", "Error");
             http_response_code(500);
 
-            die("Application entry point configuration error [node.json -> run].");
+            die(
+                "Application entry point configuration error [node.json -> run]."
+            );
         }
         # execute_run end
 
@@ -829,7 +840,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $hasZip = false;
             if (extension_loaded("zip")) {
                 $hasZip = true;
-            } elseif (function_exists("class_exists") && class_exists("ZipArchive")) {
+            } elseif (
+                function_exists("class_exists") &&
+                class_exists("ZipArchive")
+            ) {
                 $hasZip = true;
             } elseif (function_exists("zip_open")) {
                 $hasZip = true;
@@ -848,7 +862,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return "E: Cannot create zip file\n";
             }
 
-            $exclude = ["Backup", "Log", "Deprecated", "vendor", "node_modules"];
+            $exclude = [
+                "Backup",
+                "Log",
+                "Deprecated",
+                "vendor",
+                "node_modules",
+            ];
             $added = 0;
 
             $iterator = new RecursiveIteratorIterator(
@@ -865,7 +885,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                 $skip = false;
                 foreach ($exclude as $ex) {
-                    if (strpos($relativePath, $ex . D) === 0 || $relativePath === $ex) {
+                    if (
+                        strpos($relativePath, $ex . D) === 0 ||
+                        $relativePath === $ex
+                    ) {
                         $skip = true;
                         break;
                     }
@@ -900,7 +923,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             $excludeFile = "{$backupDir}exclude.txt";
-            $excludes = ["Backup", "Log", "Deprecated", "vendor", "node_modules"];
+            $excludes = [
+                "Backup",
+                "Log",
+                "Deprecated",
+                "vendor",
+                "node_modules",
+            ];
 
             file_put_contents($excludeFile, implode("\n", $excludes));
 
@@ -945,7 +974,11 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $returnCode,
             );
 
-            if ($returnCode === 0 && isset($output[0]) && is_numeric($output[0])) {
+            if (
+                $returnCode === 0 &&
+                isset($output[0]) &&
+                is_numeric($output[0])
+            ) {
                 return (int) $output[0];
             }
 
@@ -1045,7 +1078,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         $fileName = basename($foundFile, ".php");
                         $rPath = str_replace(ROOT_PATH, "", $path);
 
-                        $deprecatedDir = ROOT_PATH . "Deprecated" . D . $rPath . D;
+                        $deprecatedDir =
+                            ROOT_PATH . "Deprecated" . D . $rPath . D;
                         $deprecatedFile = "{$deprecatedDir}{$fileName}_{$timestamp}.php";
 
                         if (!is_dir($deprecatedDir)) {
@@ -1074,7 +1108,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             $structures = callStructure();
-            $path = array_first(array_filter($structures, fn($x) => $x[0] == $r))[1];
+            $path = array_first(
+                array_filter($structures, fn($x) => $x[0] == $r),
+            )[1];
 
             $nFile = "{$path}" . D . "{$n}{$r}.php";
             if (!file_exists($nFile)) {
@@ -1087,7 +1123,11 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             unlink($nFile);
 
-            $dFile = ROOT_PATH . "Deprecated" . D . str_replace(ROOT_PATH, "", $nFile);
+            $dFile =
+                ROOT_PATH .
+                "Deprecated" .
+                D .
+                str_replace(ROOT_PATH, "", $nFile);
             $gFile = substr($dFile, 0, strlen($dFile) - 4) . "*.php";
             $glob = glob($gFile);
             if (empty($glob)) {
@@ -1265,21 +1305,29 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             $missingKeyResult = cli_env(false, ["get", "MISSING_KEY"]);
-            if (strpos($missingKeyResult, "E: Key 'MISSING_KEY' not found") === false) {
+            if (
+                strpos($missingKeyResult, "E: Key 'MISSING_KEY' not found") ===
+                false
+            ) {
                 file_put_contents($envFile, $backup);
                 return 7;
             }
 
             $invalidSetResult = cli_env(false, ["set"]);
-            if (strpos($invalidSetResult, "E: Usage: env set KEY=VALUE") === false) {
+            if (
+                strpos($invalidSetResult, "E: Usage: env set KEY=VALUE") ===
+                false
+            ) {
                 file_put_contents($envFile, $backup);
                 return 8;
             }
 
             $invalidFormatResult = cli_env(false, ["set", "NO_EQUALS_SIGN"]);
             if (
-                strpos($invalidFormatResult, "E: Invalid format. Use KEY=VALUE") ===
-                false
+                strpos(
+                    $invalidFormatResult,
+                    "E: Invalid format. Use KEY=VALUE",
+                ) === false
             ) {
                 file_put_contents($envFile, $backup);
                 return 9;
@@ -1333,7 +1381,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 strpos(trim(file_get_contents($gitIgnore)), "!node.php");
 
             if (!$mode) {
-                return "Git targeting " . ($isNodeMode ? "Node" : "Project") . "\n";
+                return "Git targeting " .
+                    ($isNodeMode ? "Node" : "Project") .
+                    "\n";
             }
 
             $target = ucfirst(strtolower($mode));
@@ -1341,7 +1391,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             if (
                 ($isNodeMode && $target === "Node") ||
-                (!$isNodeMode && $target === "Project" && file_exists($gitIgnore))
+                (!$isNodeMode &&
+                    $target === "Project" &&
+                    file_exists($gitIgnore))
             ) {
                 return "Git already targeting {$target}\n";
             }
@@ -1396,7 +1448,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $fFnC = "f(string path, bool critical) : string";
             $fFn = "Static file path resolution function\n\t{$fFnC}\n";
 
-            $rFnC = "r(str logMsg, ?str logType, ?mix return, ?arr|obj ctxData = [])";
+            $rFnC =
+                "r(str logMsg, ?str logType, ?mix return, ?arr|obj ctxData = [])";
             $rFn = "Result logging function\n\t{$rFnC}\n";
             $logTypes = "LogTypes: [Internal, Access, Audit, Error]\n";
 
@@ -1417,7 +1470,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $info[] = "PHP: " . PHP_VERSION . " (" . PHP_SAPI . ")";
             $info[] = "Structure: " . count(NODE_STRUCTURE) . " categories";
 
-            $loaded = count(get_declared_classes()) - count(get_declared_interfaces());
+            $loaded =
+                count(get_declared_classes()) -
+                count(get_declared_interfaces());
             $info[] = "Loaded: {$loaded} classes";
 
             $logFiles = getAllLogFiles();
@@ -1459,7 +1514,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         if (strpos(strtolower($function), $search) !== false) {
                             $key = "function:{$function}";
                             if (!isset($seen[$key])) {
-                                $source = $type === "user" ? "user" : "internal";
+                                $source =
+                                    $type === "user" ? "user" : "internal";
                                 $matches[] = "[function:{$source}] {$function}()";
                                 $seen[$key] = true;
                             }
@@ -1473,9 +1529,12 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         $key = "class:{$class}";
                         if (!isset($seen[$key])) {
                             $reflection = new ReflectionClass($class);
-                            $source = $reflection->isInternal() ? "internal" : "user";
+                            $source = $reflection->isInternal()
+                                ? "internal"
+                                : "user";
                             $modifiers = [];
-                            $reflection->isAbstract() && ($modifiers[] = "abstract");
+                            $reflection->isAbstract() &&
+                                ($modifiers[] = "abstract");
                             $reflection->isFinal() && ($modifiers[] = "final");
                             $mod = $modifiers
                                 ? "[" . implode(" ", $modifiers) . "] "
@@ -1492,7 +1551,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         $key = "interface:{$interface}";
                         if (!isset($seen[$key])) {
                             $reflection = new ReflectionClass($interface);
-                            $source = $reflection->isInternal() ? "internal" : "user";
+                            $source = $reflection->isInternal()
+                                ? "internal"
+                                : "user";
                             $matches[] = "[interface:{$source}] {$interface}";
                             $seen[$key] = true;
                         }
@@ -1505,7 +1566,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         $key = "trait:{$trait}";
                         if (!isset($seen[$key])) {
                             $reflection = new ReflectionClass($trait);
-                            $source = $reflection->isInternal() ? "internal" : "user";
+                            $source = $reflection->isInternal()
+                                ? "internal"
+                                : "user";
                             $matches[] = "[trait:{$source}] {$trait}";
                             $seen[$key] = true;
                         }
@@ -1552,7 +1615,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 foreach (callStructure() as $c) {
                     if ($c[0] === $call) {
                         if ($resources = glob($c[1] . D . "*.*")) {
-                            $r = "Found (" . count($resources) . ") resources:\n";
+                            $r =
+                                "Found (" .
+                                count($resources) .
+                                ") resources:\n";
                             foreach ($resources as $fp) {
                                 $mtime = date("Y-m-d H:i:s", filemtime($fp));
                                 $fsize = number_format(filesize($fp));
@@ -1591,7 +1657,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 "show" => showLogs($options),
                 "clear" => clearLogs($options),
                 "tail" => tailLogs($options),
-                default => "E: Unknown action. Available: list, show, clear, tail\n",
+                default
+                    => "E: Unknown action. Available: list, show, clear, tail\n",
             };
         }
 
@@ -1678,7 +1745,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     $timestamp,
                     $type,
                     $function,
-                    substr($message, 0, 40) . (strlen($message) > 40 ? "..." : ""),
+                    substr($message, 0, 40) .
+                        (strlen($message) > 40 ? "..." : ""),
                 );
 
                 if (isset($entry["data"]) && !empty($entry["data"])) {
@@ -1710,7 +1778,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             if ($target === "all") {
                 foreach ($logFiles as $log) {
-                    if (file_exists($log["path"]) && is_writable($log["path"])) {
+                    if (
+                        file_exists($log["path"]) &&
+                        is_writable($log["path"])
+                    ) {
                         $size = filesize($log["path"]);
                         if (file_put_contents($log["path"], "") !== false) {
                             $cleared++;
@@ -1820,11 +1891,16 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $output .= "✓ Node cloned\n";
 
                 chdir("{$newNodePath}Git" . D . "Project");
-                exec("git clone {$projectGitUrl} . 2>&1", $projectOutput, $projectCode);
+                exec(
+                    "git clone {$projectGitUrl} . 2>&1",
+                    $projectOutput,
+                    $projectCode,
+                );
 
                 if ($projectCode !== 0) {
                     throw new Exception(
-                        "Failed to clone project: " . implode("\n", $projectOutput),
+                        "Failed to clone project: " .
+                            implode("\n", $projectOutput),
                     );
                 }
 
@@ -1910,7 +1986,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     ? trim($mcs[1])
                     : null;
             } else {
-                $nConf = ROOT_PATH . "Git" . D . "Node" . D . ".git" . D . "config";
+                $nConf =
+                    ROOT_PATH . "Git" . D . "Node" . D . ".git" . D . "config";
                 if (file_exists($nConf)) {
                     $cfg = file_get_contents($nConf);
                     $result["node"] = preg_match("/url\s*=\s*(.+)/", $cfg, $mcs)
@@ -1968,7 +2045,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     foreach (["SQL", "PHP"] as $type) {
                         $output .= "\n{$type} Migrations:\n";
 
-                        $migrations = glob($migrationPath . D . $type . D . "*.php");
+                        $migrations = glob(
+                            $migrationPath . D . $type . D . "*.php",
+                        );
 
                         if (empty($migrations)) {
                             $output .= "  No migrations found\n";
@@ -1977,7 +2056,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                         foreach ($migrations as $migration) {
                             $fileName = basename($migration, ".php");
-                            $status = in_array($fileName, $tracking[$type] ?? [])
+                            $status = in_array(
+                                $fileName,
+                                $tracking[$type] ?? [],
+                            )
                                 ? "APPLIED"
                                 : "PENDING";
                             $output .= "  {$fileName}: {$status}\n";
@@ -1986,7 +2068,12 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     return $output;
 
                 case "up":
-                    return migrateUp($tracking, $trackingFile, $migrationPath, $target);
+                    return migrateUp(
+                        $tracking,
+                        $trackingFile,
+                        $migrationPath,
+                        $target,
+                    );
 
                 case "down":
                     return migrateDown(
@@ -2051,7 +2138,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         } else {
                             $sqlFile = str_replace(".php", ".sql", $migration);
                             if (file_exists($sqlFile)) {
-                                $output .= "\t[SQL execution would happen here]\n";
+                                $output .=
+                                    "\t[SQL execution would happen here]\n";
                             }
                         }
 
@@ -2068,7 +2156,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     $trackingFile,
                     json_encode($tracking, JSON_PRETTY_PRINT),
                 );
-                $output .= "\nApplied migrations: " . implode(", ", $applied) . "\n";
+                $output .=
+                    "\nApplied migrations: " . implode(", ", $applied) . "\n";
             } else {
                 $output .= "\nNo new migrations to apply.\n";
             }
@@ -2122,9 +2211,14 @@ if ($LOCAL_PATH === ROOT_PATH) {
                                 }
                             }
                         } else {
-                            $sqlFile = str_replace(".php", ".down.sql", $migrationFile);
+                            $sqlFile = str_replace(
+                                ".php",
+                                ".down.sql",
+                                $migrationFile,
+                            );
                             if (file_exists($sqlFile)) {
-                                $output .= "  [SQL rollback would happen here]\n";
+                                $output .=
+                                    "  [SQL rollback would happen here]\n";
                             }
                         }
 
@@ -2151,7 +2245,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     json_encode($tracking, JSON_PRETTY_PRINT),
                 );
                 $output .=
-                    "\nRolled back migrations: " . implode(", ", $rolledBack) . "\n";
+                    "\nRolled back migrations: " .
+                    implode(", ", $rolledBack) .
+                    "\n";
             } else {
                 $output .= "\nNo migrations to roll back.\n";
             }
@@ -2301,7 +2397,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             $createMissingNameResult = cli_migrate(false, ["create"]);
             if (
-                strpos($createMissingNameResult, "E: Missing migration name") === false
+                strpos(
+                    $createMissingNameResult,
+                    "E: Missing migration name",
+                ) === false
             ) {
                 restoreMigrationState($backupTracking, $backupMigrationDir);
                 return 6;
@@ -2312,8 +2411,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return 0;
         }
 
-        function restoreMigrationState($backupTracking, $backupMigrationDir): void
-        {
+        function restoreMigrationState(
+            $backupTracking,
+            $backupMigrationDir,
+        ): void {
             $migrationPath = ROOT_PATH . "Migration";
             $trackingFile = ROOT_PATH . ".migrations.json";
 
@@ -2367,10 +2468,18 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     if ($c[0] === $call) {
                         if (strpos($c[1], "Migration") !== false) {
                             $timestamp = date("Ymd_His");
-                            $safeName = preg_replace("/[^a-zA-Z0-9_]/", "_", $name);
+                            $safeName = preg_replace(
+                                "/[^a-zA-Z0-9_]/",
+                                "_",
+                                $name,
+                            );
                             $migrationName = "{$timestamp}_{$safeName}";
 
-                            $fc = generateBoilerplate($c[1], $safeName, ROOT_PATH);
+                            $fc = generateBoilerplate(
+                                $c[1],
+                                $safeName,
+                                ROOT_PATH,
+                            );
                             $fn = $c[1] . D . "{$migrationName}{$fc[1]}.php";
 
                             if (strpos($c[1], "Migration/PHP") !== false) {
@@ -2495,13 +2604,17 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return 9;
             }
 
-            $invalidResourceResult = cli_new(false, ["InvalidResourceName", $n]);
+            $invalidResourceResult = cli_new(false, [
+                "InvalidResourceName",
+                $n,
+            ]);
             if (
                 !str_starts_with(
                     $invalidResourceResult,
                     "E: Could not create resource",
                 ) ||
-                strpos($invalidResourceResult, "invalid resource name") === false
+                strpos($invalidResourceResult, "invalid resource name") ===
+                    false
             ) {
                 unlink($expectedFile);
                 return 10;
@@ -2620,13 +2733,14 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     foreach ($testFunctions as $testFunc) {
                         $total++;
                         try {
-                            $result = $testFunc();
-                            $output .=
-                                "    " . trim($result) . " :: OK {$testFunc}()\n";
+                            $result = (string) $testFunc();
+                            $output .= trim($result) . " :: OK {$testFunc}()\n";
                             $passed++;
                         } catch (Exception $e) {
                             $output .=
-                                "    FAIL {$testFunc}(): " . $e->getMessage() . "\n";
+                                "FAIL {$testFunc}(): " .
+                                $e->getMessage() .
+                                "\n";
                             $failed++;
                         }
                     }
@@ -2634,30 +2748,56 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     $classes = get_declared_classes();
                     foreach ($classes as $class) {
                         if (
-                            str_ends_with($class, "Test") ||
-                            str_ends_with($class, "TestCase")
+                            str_ends_with($class, "Contract") ||
+                            str_ends_with($class, "E2E") ||
+                            str_ends_with($class, "Integration") ||
+                            str_ends_with($class, "Unit")
                         ) {
                             $reflection = new ReflectionClass($class);
-                            if ($reflection->hasMethod("run")) {
-                                $total++;
-                                try {
-                                    $instance = $reflection->newInstance();
-                                    $instance->run();
-                                    $output .= "    OK {$class}::run()\n";
-                                    $passed++;
-                                } catch (Exception $e) {
-                                    $output .=
-                                        "    FAIL {$class}::run(): " .
-                                        $e->getMessage() .
-                                        "\n";
-                                    $failed++;
+
+                            $testMethods = array_filter(
+                                $reflection->getMethods(
+                                    ReflectionMethod::IS_PUBLIC,
+                                ),
+                                fn($m) => str_starts_with(
+                                    $m->getName(),
+                                    "test",
+                                ),
+                            );
+
+                            if (
+                                !empty($testMethods) &&
+                                !$reflection->isAbstract() &&
+                                str_contains(
+                                    $reflection->getNamespaceName(),
+                                    "Test",
+                                )
+                            ) {
+                                $total += count($testMethods);
+
+                                foreach ($testMethods as $method) {
+                                    $testName = $method->getName();
+                                    try {
+                                        $instance = $reflection->newInstance(
+                                            $testName,
+                                        );
+                                        $instance->$testName();
+                                        $output .= "OK {$class}::{$testName}()\n";
+                                        $passed++;
+                                    } catch (Throwable $e) {
+                                        $output .=
+                                            "FAIL {$class}::{$testName}(): " .
+                                            $e->getMessage() .
+                                            "\n";
+                                        $failed++;
+                                    }
                                 }
                             }
                         }
                     }
                 } catch (Exception $e) {
                     $output .=
-                        "    FAIL Error loading test: " . $e->getMessage() . "\n";
+                        "FAIL Error loading test: " . $e->getMessage() . "\n";
                     $failed++;
                 }
                 ob_end_clean();
@@ -2699,8 +2839,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 if (!$found) {
                     $testFunctions = array_filter(
                         $testFunctions,
-                        fn($functionName) => strpos($functionName, $searchName) !==
-                            false,
+                        fn($functionName) => strpos(
+                            $functionName,
+                            $searchName,
+                        ) !== false,
                     );
 
                     if (empty($testFunctions)) {
@@ -2740,10 +2882,15 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     }
                 } catch (Exception $e) {
                     $output .=
-                        "{$testFunc} failed: Exception - " . $e->getMessage() . "\n";
+                        "{$testFunc} failed: Exception - " .
+                        $e->getMessage() .
+                        "\n";
                     $failed++;
                 } catch (Error $e) {
-                    $output .= "{$testFunc} failed: Error - " . $e->getMessage() . "\n";
+                    $output .=
+                        "{$testFunc} failed: Error - " .
+                        $e->getMessage() .
+                        "\n";
                     $failed++;
                 }
             }
@@ -2795,7 +2942,11 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                 // Look for "# section begin"
                 if (
-                    preg_match('/^(\s*)#\s*([a-z_]+)\s+begin\s*$/', $line, $beginMatch)
+                    preg_match(
+                        '/^(\s*)#\s*([a-z_]+)\s+begin\s*$/',
+                        $line,
+                        $beginMatch,
+                    )
                 ) {
                     $markerIndent = $beginMatch[1]; // Indentation of the marker itself
                     $sectionName = $beginMatch[2];
@@ -2833,7 +2984,12 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         $sectionContent = rtrim($sectionContent);
 
                         // Skip if already wrapped
-                        if (!preg_match("/^\s*include_once\s+/", $sectionContent)) {
+                        if (
+                            !preg_match(
+                                "/^\s*include_once\s+/",
+                                $sectionContent,
+                            )
+                        ) {
                             // Remove indentation relative to marker for saving
                             $cleanContent = removeRelativeIndentation(
                                 $sectionContent,
@@ -2841,7 +2997,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                             );
 
                             // Save to file with clean indentation
-                            $sectionFile = ROOT_PATH . "node.{$sectionName}.php";
+                            $sectionFile =
+                                ROOT_PATH . "node.{$sectionName}.php";
                             file_put_contents(
                                 $sectionFile,
                                 "<?php declare(strict_types=1);\n\n{$cleanContent}\n",
@@ -2904,7 +3061,11 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                 // Look for "# section begin"
                 if (
-                    preg_match('/^(\s*)#\s*([a-z_]+)\s+begin\s*$/', $line, $beginMatch)
+                    preg_match(
+                        '/^(\s*)#\s*([a-z_]+)\s+begin\s*$/',
+                        $line,
+                        $beginMatch,
+                    )
                 ) {
                     $markerIndent = $beginMatch[1];
                     $sectionName = $beginMatch[2];
@@ -2942,10 +3103,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                         if ($foundEnd) {
                             // Load section from file
-                            $sectionFile = ROOT_PATH . "node.{$sectionName}.php";
+                            $sectionFile =
+                                ROOT_PATH . "node.{$sectionName}.php";
 
                             if (file_exists($sectionFile)) {
-                                $sectionContent = file_get_contents($sectionFile);
+                                $sectionContent = file_get_contents(
+                                    $sectionFile,
+                                );
 
                                 // Remove PHP opening tag with strict_types declaration
                                 // Handle both possible formats
@@ -2984,7 +3148,11 @@ if ($LOCAL_PATH === ROOT_PATH) {
                                     $i = $endIndex; // Skip processed lines
                                 } else {
                                     // Empty content, keep as-is
-                                    for ($k = $startIndex; $k <= $endIndex; $k++) {
+                                    for (
+                                        $k = $startIndex;
+                                        $k <= $endIndex;
+                                        $k++
+                                    ) {
                                         $newLines[] = $lines[$k];
                                     }
                                     $i = $endIndex;
@@ -3023,8 +3191,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 "\n";
         }
 
-        function removeRelativeIndentation(string $content, string $baseIndent): string
-        {
+        function removeRelativeIndentation(
+            string $content,
+            string $baseIndent,
+        ): string {
             if (empty($baseIndent)) {
                 return $content;
             }
@@ -3044,8 +3214,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return implode("\n", $cleanedLines);
         }
 
-        function addRelativeIndentation(string $content, string $baseIndent): string
-        {
+        function addRelativeIndentation(
+            string $content,
+            string $baseIndent,
+        ): string {
             if (empty($baseIndent)) {
                 return $content;
             }
