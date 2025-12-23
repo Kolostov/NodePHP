@@ -27,203 +27,7 @@ if (!defined("NODE_NAME")) {
 } else {
     # Add self to root paths for file inclusion checkng.
     $ROOT_PATHS[] = $LOCAL_PATH;
-
-    # Skip all of the function declarations.
-    goto node_subinclude;
 }
-
-# f begin
-/*
- * @param string $fn Complete path to file.
- * @param string $critical Die if file does not exist.
- *
- * @return string Real path.
- */
-function f(string $fn, bool $critical = true): string|null
-{
-    if (file_exists($fn)) {
-        return $fn;
-    }
-
-    global $ROOT_PATHS;
-
-    $fn = ltrim(str_replace(ROOT_PATH, "", $fn), D);
-
-    foreach ($ROOT_PATHS as $path) {
-        $sfn = "{$path}{$fn}";
-        if (file_exists($sfn)) {
-            return $sfn;
-        }
-    }
-
-    return $critical
-        ? die("Error: function f() cannot find file: {$fn}")
-        : null;
-}
-# f end
-
-# r begin
-function r(
-    string $logMessage,
-    string $logType = "Internal",
-    mixed $return = null,
-    null|array|object $dataArray = null,
-): mixed {
-    static $logDirs = [
-        "Internal" => LOG_PATH . "Internal" . D,
-        "Access" => LOG_PATH . "Access" . D,
-        "Error" => LOG_PATH . "Error" . D,
-        "Audit" => LOG_PATH . "Audit" . D,
-    ];
-
-    $logDir = $logDirs[$logType] ?? $logDirs["Internal"];
-
-    $date = date("Y-m-d");
-    $logFile = "{$logDir}{$date}.log";
-
-    $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
-    $caller = $backtrace[1]["function"] ?? "#rootcode";
-    $file = $backtrace[0]["file"] ?? "unknown";
-    $line = $backtrace[0]["line"] ?? 0;
-
-    $entry = [
-        "timestamp" => date("Y-m-d H:i:s"),
-        "type" => $logType,
-        "file" => str_replace(ROOT_PATH, "", $file),
-        "line" => $line,
-        "function" => $caller,
-        "message" => $logMessage,
-        "data" => $dataArray ? (array) $dataArray : null,
-        "result" => $return,
-    ];
-
-    if (PHP_SAPI !== "cli") {
-        $entry["ip"] = $_SERVER["REMOTE_ADDR"] ?? "cli";
-        $entry["method"] = $_SERVER["REQUEST_METHOD"] ?? "cli";
-        $entry["uri"] = $_SERVER["REQUEST_URI"] ?? "cli";
-
-        if (session_status() !== PHP_SESSION_NONE) {
-            $entry["session_id"] = session_id();
-            if (isset($_SESSION["loggedin"]["user_id"])) {
-                $entry["user_id"] = $_SESSION["loggedin"]["user_id"];
-            }
-        }
-    }
-
-    file_put_contents(
-        $logFile,
-        json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) .
-            "\n",
-        FILE_APPEND,
-    );
-
-    return $return;
-}
-# r end
-
-# log_read_file begin
-function logReadFile(string $path): array
-{
-    if (!file_exists($path)) {
-        return [];
-    }
-
-    $logs = [];
-    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-
-    foreach ($lines as $line) {
-        if (trim($line) === "") {
-            continue;
-        }
-
-        try {
-            $logEntry = json_decode($line, true);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                $logs[] = $logEntry;
-            }
-        } catch (Exception $e) {
-            // Skip invalid JSON lines
-        }
-    }
-
-    return $logs;
-}
-# log_read_file end
-
-# log_read_files_array begin
-function logReadFilesArray(array $arrayOfPathsToLogFiles): array
-{
-    if (empty($arrayOfPathsToLogFiles)) {
-        return [];
-    }
-
-    $allLogs = [];
-    foreach ($arrayOfPathsToLogFiles as $path) {
-        $allLogs = [...$allLogs, ...logReadFile($path)];
-    }
-
-    // Sort by timestamp (newest first)
-    usort(
-        $allLogs,
-        fn($a, $b) => strtotime($b["timestamp"] ?? "1970-01-01") <=>
-            strtotime($a["timestamp"] ?? "1970-01-01"),
-    );
-
-    return $allLogs;
-}
-# log_read_files_array end
-
-# get_all_log_files begin
-function getAllLogFiles(): array
-{
-    $logFiles = [];
-
-    // Internal logs from node structure
-    $logTypes = ["Internal", "Access", "Error", "Audit"];
-    foreach ($logTypes as $type) {
-        $logDir = LOG_PATH . $type . D;
-        if (is_dir($logDir)) {
-            $files = glob("{$logDir}*.log");
-            foreach ($files as $file) {
-                $logFiles[] = [
-                    "type" => $type,
-                    "path" => $file,
-                    "size" => filesize($file),
-                    "modified" => filemtime($file),
-                ];
-            }
-        }
-    }
-
-    // System logs (Apache, Nginx)
-    $systemLogs = [
-        // Apache
-        "/var/log/apache2/access.log",
-        "/var/log/apache2/error.log",
-        "/var/log/httpd/access_log",
-        "/var/log/httpd/error_log",
-        // Nginx
-        "/var/log/nginx/access.log",
-        "/var/log/nginx/error.log",
-        // Common locations
-        "/var/log/syslog",
-        "/var/log/messages",
-    ];
-
-    foreach ($systemLogs as $logPath) {
-        if (file_exists($logPath) && is_readable($logPath)) {
-            $logFiles[] = [
-                "type" => "system",
-                "path" => $logPath,
-                "size" => filesize($logPath),
-                "modified" => filemtime($logPath),
-            ];
-        }
-    }
-
-    return $logFiles;
-}
-# get_all_log_files end
 
 /**
  * Constructed in node_structure
@@ -492,6 +296,206 @@ try {
     throw new RuntimeException($msg, 0, $e);
 }
 # node_structure end
+
+# Checking if we're currently within root node to include
+# all the base funcitonality.
+if (ROOT_PATH !== $LOCAL_PATH) {
+    # Skip all of the function declarations.
+    goto node_subinclude;
+}
+
+# f begin
+/*
+ * @param string $fn Complete path to file.
+ * @param string $critical Die if file does not exist.
+ *
+ * @return string Real path.
+ */
+function f(string $fn, bool $critical = true): string|null
+{
+    if (file_exists($fn)) {
+        return $fn;
+    }
+
+    global $ROOT_PATHS;
+
+    $fn = ltrim(str_replace(ROOT_PATH, "", $fn), D);
+
+    foreach ($ROOT_PATHS as $path) {
+        $sfn = "{$path}{$fn}";
+        if (file_exists($sfn)) {
+            return $sfn;
+        }
+    }
+
+    return $critical
+        ? die("Error: function f() cannot find file: {$fn}")
+        : null;
+}
+# f end
+
+# r begin
+function r(
+    string $logMessage,
+    string $logType = "Internal",
+    mixed $return = null,
+    null|array|object $dataArray = null,
+): mixed {
+    static $logDirs = [
+        "Internal" => LOG_PATH . "Internal" . D,
+        "Access" => LOG_PATH . "Access" . D,
+        "Error" => LOG_PATH . "Error" . D,
+        "Audit" => LOG_PATH . "Audit" . D,
+    ];
+
+    $logDir = $logDirs[$logType] ?? $logDirs["Internal"];
+
+    $date = date("Y-m-d");
+    $logFile = "{$logDir}{$date}.log";
+
+    $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+    $caller = $backtrace[1]["function"] ?? "#rootcode";
+    $file = $backtrace[0]["file"] ?? "unknown";
+    $line = $backtrace[0]["line"] ?? 0;
+
+    $entry = [
+        "timestamp" => date("Y-m-d H:i:s"),
+        "type" => $logType,
+        "file" => str_replace(ROOT_PATH, "", $file),
+        "line" => $line,
+        "function" => $caller,
+        "message" => $logMessage,
+        "data" => $dataArray ? (array) $dataArray : null,
+        "result" => $return,
+    ];
+
+    if (PHP_SAPI !== "cli") {
+        $entry["ip"] = $_SERVER["REMOTE_ADDR"] ?? "cli";
+        $entry["method"] = $_SERVER["REQUEST_METHOD"] ?? "cli";
+        $entry["uri"] = $_SERVER["REQUEST_URI"] ?? "cli";
+
+        if (session_status() !== PHP_SESSION_NONE) {
+            $entry["session_id"] = session_id();
+            if (isset($_SESSION["loggedin"]["user_id"])) {
+                $entry["user_id"] = $_SESSION["loggedin"]["user_id"];
+            }
+        }
+    }
+
+    file_put_contents(
+        $logFile,
+        json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) .
+            "\n",
+        FILE_APPEND,
+    );
+
+    return $return;
+}
+# r end
+
+# log_read_file begin
+function logReadFile(string $path): array
+{
+    if (!file_exists($path)) {
+        return [];
+    }
+
+    $logs = [];
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+    foreach ($lines as $line) {
+        if (trim($line) === "") {
+            continue;
+        }
+
+        try {
+            $logEntry = json_decode($line, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $logs[] = $logEntry;
+            }
+        } catch (Exception $e) {
+            // Skip invalid JSON lines
+        }
+    }
+
+    return $logs;
+}
+# log_read_file end
+
+# log_read_files_array begin
+function logReadFilesArray(array $arrayOfPathsToLogFiles): array
+{
+    if (empty($arrayOfPathsToLogFiles)) {
+        return [];
+    }
+
+    $allLogs = [];
+    foreach ($arrayOfPathsToLogFiles as $path) {
+        $allLogs = [...$allLogs, ...logReadFile($path)];
+    }
+
+    // Sort by timestamp (newest first)
+    usort(
+        $allLogs,
+        fn($a, $b) => strtotime($b["timestamp"] ?? "1970-01-01") <=>
+            strtotime($a["timestamp"] ?? "1970-01-01"),
+    );
+
+    return $allLogs;
+}
+# log_read_files_array end
+
+# get_all_log_files begin
+function getAllLogFiles(): array
+{
+    $logFiles = [];
+
+    // Internal logs from node structure
+    $logTypes = ["Internal", "Access", "Error", "Audit"];
+    foreach ($logTypes as $type) {
+        $logDir = LOG_PATH . $type . D;
+        if (is_dir($logDir)) {
+            $files = glob("{$logDir}*.log");
+            foreach ($files as $file) {
+                $logFiles[] = [
+                    "type" => $type,
+                    "path" => $file,
+                    "size" => filesize($file),
+                    "modified" => filemtime($file),
+                ];
+            }
+        }
+    }
+
+    // System logs (Apache, Nginx)
+    $systemLogs = [
+        // Apache
+        "/var/log/apache2/access.log",
+        "/var/log/apache2/error.log",
+        "/var/log/httpd/access_log",
+        "/var/log/httpd/error_log",
+        // Nginx
+        "/var/log/nginx/access.log",
+        "/var/log/nginx/error.log",
+        // Common locations
+        "/var/log/syslog",
+        "/var/log/messages",
+    ];
+
+    foreach ($systemLogs as $logPath) {
+        if (file_exists($logPath) && is_readable($logPath)) {
+            $logFiles[] = [
+                "type" => "system",
+                "path" => $logPath,
+                "size" => filesize($logPath),
+                "modified" => filemtime($logPath),
+            ];
+        }
+    }
+
+    return $logFiles;
+}
+# get_all_log_files end
 
 # walk_structure begin
 function walkStructure(
