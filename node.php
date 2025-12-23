@@ -2077,6 +2077,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
         }
 
+        # migrate_up begin
         function migrateUp(
             array $tracking,
             string $trackingFile,
@@ -2145,7 +2146,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             return $output;
         }
+        # migrate_up end
 
+        # migrate_down begin
         function migrateDown(
             array $tracking,
             string $trackingFile,
@@ -2228,6 +2231,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             return $output;
         }
+        # migrate_down end
 
         function createMigration(string $migrationPath, string $name): string
         {
@@ -2861,123 +2865,46 @@ if ($LOCAL_PATH === ROOT_PATH) {
         function wrapOpen(): string
         {
             $nodeFile = ROOT_PATH . "node.php";
-
             if (!file_exists($nodeFile)) {
                 return "E: node.php not found\n";
             }
 
             $content = file_get_contents($nodeFile);
-            $lines = explode("\n", $content);
-            $newLines = [];
-            $sections = [];
-            $i = 0;
-            $n = count($lines);
-
-            while ($i < $n) {
-                $line = $lines[$i];
-
-                // Look for "# section begin"
-                if (
-                    preg_match('/^(\s*)#\s*([a-z_]+)\s+begin\s*$/', $line, $beginMatch)
-                ) {
-                    $markerIndent = $beginMatch[1]; // Indentation of the marker itself
-                    $sectionName = $beginMatch[2];
-                    $startIndex = $i;
-                    $sectionLines = [];
-
-                    // Find matching end
-                    $j = $i + 1;
-                    $foundEnd = false;
-
-                    while ($j < $n) {
-                        $innerLine = $lines[$j];
-
-                        // Check for "# section end"
-                        if (
-                            preg_match(
-                                "/^\s*#\s*" .
-                                    preg_quote($sectionName, "/") .
-                                    '\s+end\s*$/',
-                                $innerLine,
-                            )
-                        ) {
-                            $endIndex = $j;
-                            $foundEnd = true;
-                            break;
-                        }
-
-                        $sectionLines[] = $innerLine;
-                        $j++;
-                    }
-
-                    if ($foundEnd) {
-                        // Join section lines
-                        $sectionContent = implode("\n", $sectionLines);
-                        $sectionContent = rtrim($sectionContent);
-
-                        // Skip if already wrapped
-                        if (!preg_match("/^\s*include_once\s+/", $sectionContent)) {
-                            // Remove indentation relative to marker for saving
-                            $cleanContent = removeRelativeIndentation(
-                                $sectionContent,
-                                $markerIndent,
-                            );
-
-                            // Save to file with clean indentation
-                            $sectionFile = ROOT_PATH . "node.{$sectionName}.php";
-                            file_put_contents(
-                                $sectionFile,
-                                "<?php declare(strict_types=1);\n\n{$cleanContent}\n",
-                            );
-
-                            // Replace with include (using marker indentation)
-                            $newLines[] = "{$markerIndent}# {$sectionName} begin";
-                            $newLines[] = "{$markerIndent}include_once \"{\$LOCAL_PATH}node.{$sectionName}.php\";";
-                            $newLines[] = "{$markerIndent}# {$sectionName} end";
-                            $sections[] = $sectionName;
-
-                            $i = $endIndex; // Skip to end
-                        } else {
-                            // Already wrapped, keep as-is
-                            for ($k = $startIndex; $k <= $endIndex; $k++) {
-                                $newLines[] = $lines[$k];
-                            }
-                            $i = $endIndex;
-                        }
-                    } else {
-                        // No matching end, keep line as-is
-                        $newLines[] = $line;
-                    }
-                } else {
-                    $newLines[] = $line;
-                }
-
-                $i++;
-            }
+            $sections = extractSections($content);
 
             if (empty($sections)) {
                 return "✓ node.php is already wrapped\n";
             }
 
-            file_put_contents($nodeFile, implode("\n", $newLines));
-            return "✓ Wrapped " .
-                count($sections) .
-                " sections: " .
-                implode(", ", $sections) .
-                "\n";
+            $newContent = processSectionsOpen($content, $sections);
+            file_put_contents($nodeFile, $newContent);
+
+            return "✓ Wrapped " . count($sections) . " sections\n";
         }
 
         function wrapClose(): string
         {
             $nodeFile = ROOT_PATH . "node.php";
-
             if (!file_exists($nodeFile)) {
                 return "E: node.php not found\n";
             }
 
             $content = file_get_contents($nodeFile);
+            $sections = findWrappedSections($content);
+
+            if (empty($sections)) {
+                return "✓ node.php is already unwrapped\n";
+            }
+
+            $newContent = processSectionsClose($content, $sections);
+            file_put_contents($nodeFile, $newContent);
+
+            return "✓ Unwrapped " . count($sections) . " sections\n";
+        }
+
+        function extractSections(string $content, string $parentPath = ""): array
+        {
             $lines = explode("\n", $content);
-            $newLines = [];
             $sections = [];
             $i = 0;
             $n = count($lines);
@@ -2985,7 +2912,6 @@ if ($LOCAL_PATH === ROOT_PATH) {
             while ($i < $n) {
                 $line = $lines[$i];
 
-                // Look for "# section begin"
                 if (
                     preg_match('/^(\s*)#\s*([a-z_]+)\s+begin\s*$/', $line, $beginMatch)
                 ) {
@@ -2993,17 +2919,125 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     $sectionName = $beginMatch[2];
                     $startIndex = $i;
 
-                    // Check if next line is an include
+                    $j = $i + 1;
+                    $foundEnd = false;
+
+                    while ($j < $n) {
+                        if (
+                            preg_match(
+                                "/^\s*#\s*" .
+                                    preg_quote($sectionName, "/") .
+                                    '\s+end\s*$/',
+                                $lines[$j],
+                            )
+                        ) {
+                            $endIndex = $j;
+                            $foundEnd = true;
+                            break;
+                        }
+                        $j++;
+                    }
+
+                    if ($foundEnd) {
+                        $sectionLines = array_slice($lines, $i + 1, $endIndex - $i - 1);
+                        $sectionContent = implode("\n", $sectionLines);
+                        $sectionContent = rtrim($sectionContent);
+
+                        if (!preg_match("/^\s*include_once\s+/", $sectionContent)) {
+                            $fullName = $parentPath
+                                ? "{$parentPath}.{$sectionName}"
+                                : $sectionName;
+
+                            $innerSections = extractSections(
+                                $sectionContent,
+                                $fullName,
+                            );
+                            if (!empty($innerSections)) {
+                                $sectionContent = processSectionsOpen(
+                                    $sectionContent,
+                                    $innerSections,
+                                );
+                            }
+
+                            $sections[] = [
+                                "name" => $sectionName,
+                                "fullName" => $fullName,
+                                "indent" => $markerIndent,
+                                "start" => $startIndex,
+                                "end" => $endIndex,
+                                "content" => $sectionContent,
+                            ];
+                        }
+
+                        $i = $endIndex;
+                    }
+                }
+
+                $i++;
+            }
+
+            return $sections;
+        }
+
+        function processSectionsOpen(string $content, array $sections): string
+        {
+            $lines = explode("\n", $content);
+            $offset = 0;
+
+            foreach ($sections as $section) {
+                $start = $section["start"] + $offset;
+                $end = $section["end"] + $offset;
+
+                $cleanContent = removeRelativeIndentation(
+                    $section["content"],
+                    $section["indent"],
+                );
+
+                $sectionFile = ROOT_PATH . "node.{$section["fullName"]}.php";
+                file_put_contents(
+                    $sectionFile,
+                    "<?php declare(strict_types=1);\n\n{$cleanContent}\n",
+                );
+
+                $replacement = [
+                    "{$section["indent"]}# {$section["name"]} begin",
+                    "{$section["indent"]}include_once \"{\$LOCAL_PATH}node.{$section["fullName"]}.php\";",
+                    "{$section["indent"]}# {$section["name"]} end",
+                ];
+
+                array_splice($lines, $start, $end - $start + 1, $replacement);
+                $offset += count($replacement) - ($end - $start + 1);
+            }
+
+            return implode("\n", $lines);
+        }
+
+        function findWrappedSections(string $content): array
+        {
+            $lines = explode("\n", $content);
+            $sections = [];
+            $i = 0;
+            $n = count($lines);
+
+            while ($i < $n) {
+                $line = $lines[$i];
+
+                if (
+                    preg_match('/^(\s*)#\s*([a-z_]+)\s+begin\s*$/', $line, $beginMatch)
+                ) {
+                    $markerIndent = $beginMatch[1];
+                    $sectionName = $beginMatch[2];
+
                     if (
                         $i + 1 < $n &&
                         preg_match(
-                            '/^\s*include_once\s+["\'][^"\']*node\.' .
-                                preg_quote($sectionName, "/") .
-                                '\.php["\'];\s*$/',
+                            '/^\s*include_once\s+["\'][^"\']*node\.([a-z_.]+)\.php["\'];\s*$/',
                             $lines[$i + 1],
+                            $includeMatch,
                         )
                     ) {
-                        // Find matching end
+                        $fullName = $includeMatch[1];
+
                         $j = $i + 2;
                         $foundEnd = false;
 
@@ -3016,7 +3050,6 @@ if ($LOCAL_PATH === ROOT_PATH) {
                                     $lines[$j],
                                 )
                             ) {
-                                $endIndex = $j;
                                 $foundEnd = true;
                                 break;
                             }
@@ -3024,86 +3057,76 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         }
 
                         if ($foundEnd) {
-                            // Load section from file
-                            $sectionFile = ROOT_PATH . "node.{$sectionName}.php";
+                            $sections[] = [
+                                "name" => $sectionName,
+                                "fullName" => $fullName,
+                                "indent" => $markerIndent,
+                                "start" => $i,
+                                "end" => $j,
+                            ];
 
-                            if (file_exists($sectionFile)) {
-                                $sectionContent = file_get_contents($sectionFile);
-
-                                // Remove PHP opening tag with strict_types declaration
-                                // Handle both possible formats
-                                $sectionContent = preg_replace(
-                                    [
-                                        '/^<\?php\s+declare\(strict_types=1\);\s*\n+/',
-                                        '/^<\?php declare\(strict_types=1\);\s*\n+/',
-                                        '/^<\?php\s*\n+/',
-                                    ],
-                                    "",
-                                    $sectionContent,
-                                    1, // Only replace once at the beginning
-                                );
-
-                                $sectionContent = rtrim($sectionContent);
-
-                                if (!empty($sectionContent)) {
-                                    // Add indentation relative to marker
-                                    $indentedContent = addRelativeIndentation(
-                                        $sectionContent,
-                                        $markerIndent,
-                                    );
-
-                                    // Add to new lines
-                                    $newLines[] = "{$markerIndent}# {$sectionName} begin";
-                                    $newLines = [
-                                        ...$newLines,
-                                        ...explode("\n", $indentedContent),
-                                    ];
-                                    $newLines[] = "{$markerIndent}# {$sectionName} end";
-                                    $sections[] = $sectionName;
-
-                                    // Delete the file
-                                    unlink($sectionFile);
-
-                                    $i = $endIndex; // Skip processed lines
-                                } else {
-                                    // Empty content, keep as-is
-                                    for ($k = $startIndex; $k <= $endIndex; $k++) {
-                                        $newLines[] = $lines[$k];
-                                    }
-                                    $i = $endIndex;
-                                }
-                            } else {
-                                // File missing, keep as-is
-                                for ($k = $startIndex; $k <= $endIndex; $k++) {
-                                    $newLines[] = $lines[$k];
-                                }
-                                $i = $endIndex;
-                            }
-                        } else {
-                            // No matching end, keep line as-is
-                            $newLines[] = $line;
+                            $i = $j;
                         }
-                    } else {
-                        // Not wrapped, keep as-is
-                        $newLines[] = $line;
                     }
-                } else {
-                    $newLines[] = $line;
                 }
 
                 $i++;
             }
 
-            if (empty($sections)) {
-                return "✓ node.php is already unwrapped\n";
+            return $sections;
+        }
+
+        function processSectionsClose(string $content, array $sections): string
+        {
+            $lines = explode("\n", $content);
+            $offset = 0;
+
+            foreach ($sections as $section) {
+                $start = $section["start"] + $offset;
+                $end = $section["end"] + $offset;
+
+                $sectionFile = ROOT_PATH . "node.{$section["fullName"]}.php";
+
+                if (file_exists($sectionFile)) {
+                    $sectionContent = file_get_contents($sectionFile);
+                    $sectionContent = preg_replace(
+                        '/^<\?php\s+declare\(strict_types=1\);\s*\n+/',
+                        "",
+                        $sectionContent,
+                        1,
+                    );
+                    $sectionContent = rtrim($sectionContent);
+
+                    $innerSections = findWrappedSections($sectionContent);
+                    if (!empty($innerSections)) {
+                        $sectionContent = processSectionsClose(
+                            $sectionContent,
+                            $innerSections,
+                        );
+                    }
+
+                    $indentedContent = addRelativeIndentation(
+                        $sectionContent,
+                        $section["indent"],
+                    );
+
+                    $replacement = ["{$section["indent"]}# {$section["name"]} begin"];
+                    $replacement = array_merge(
+                        $replacement,
+                        explode("\n", $indentedContent),
+                    );
+                    $replacement[] = "{$section["indent"]}# {$section["name"]} end";
+
+                    unlink($sectionFile);
+
+                    array_splice($lines, $start, $end - $start + 1, $replacement);
+                    $offset += count($replacement) - ($end - $start + 1);
+                } else {
+                    $i = $end;
+                }
             }
 
-            file_put_contents($nodeFile, implode("\n", $newLines));
-            return "✓ Unwrapped " .
-                count($sections) .
-                " sections: " .
-                implode(", ", $sections) .
-                "\n";
+            return implode("\n", $lines);
         }
 
         function removeRelativeIndentation(string $content, string $baseIndent): string
@@ -3113,18 +3136,17 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             $lines = explode("\n", $content);
-            $cleanedLines = [];
-            $baseIndentLen = strlen($baseIndent);
+            $cleaned = [];
+            $baseLen = strlen($baseIndent);
 
             foreach ($lines as $line) {
-                // Remove the base indentation if present
-                $cleanedLines[] =
-                    substr($line, 0, $baseIndentLen) === $baseIndent
-                        ? substr($line, $baseIndentLen)
+                $cleaned[] =
+                    substr($line, 0, $baseLen) === $baseIndent
+                        ? substr($line, $baseLen)
                         : $line;
             }
 
-            return implode("\n", $cleanedLines);
+            return implode("\n", $cleaned);
         }
 
         function addRelativeIndentation(string $content, string $baseIndent): string
@@ -3134,13 +3156,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             $lines = explode("\n", $content);
-            $indentedLines = [];
+            $indented = [];
 
             foreach ($lines as $line) {
-                $indentedLines[] = $line === "" ? "" : "{$baseIndent}{$line}";
+                $indented[] = $line === "" ? "" : "{$baseIndent}{$line}";
             }
 
-            return implode("\n", $indentedLines);
+            return implode("\n", $indented);
         }
         # cli_wrap end
 
