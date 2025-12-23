@@ -608,7 +608,7 @@ function includeStructure(array $STRUCTURE, string $PATH, array $NODES): void
                 $file = $check . D . "node.php";
                 $size = filesize(__FILE__);
 
-                if (file_exists($file) && filesize($file) != $size) {
+                if (file_exists($file) && filesize($file) === $size) {
                     include_once $file;
                 } else {
                     # Impossible optimization:
