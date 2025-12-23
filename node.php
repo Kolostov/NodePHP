@@ -3,6 +3,8 @@ error_reporting(E_ALL);
 
 $LOCAL_PATH = realpath(__DIR__) . DIRECTORY_SEPARATOR;
 
+var_dump("LOCAL_PATH: {$LOCAL_PATH}");
+
 # Main entry point declarations
 if (!defined("NODE_NAME")) {
     ini_set("display_errors", !0);
