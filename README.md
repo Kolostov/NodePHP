@@ -40,3 +40,7 @@ Defining node parameters in *node.json* file:
     "require": []
 }
 ```
+
+## TODO
+* cli_make Git/Node/$symlink does not get removed after cloning from repo.
+* this has to be excluded from checks if folder is empty or deleted after moving/making new symlink.
