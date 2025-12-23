@@ -3,8 +3,6 @@ error_reporting(E_ALL);
 
 $LOCAL_PATH = realpath(__DIR__) . DIRECTORY_SEPARATOR;
 
-var_dump("LOCAL_PATH: {$LOCAL_PATH}");
-
 # Main entry point declarations
 if (!defined("NODE_NAME")) {
     ini_set("display_errors", !0);
@@ -303,440 +301,447 @@ try {
 # all the base funcitonality.
 if (ROOT_PATH !== $LOCAL_PATH) {
     # Skip all of the function declarations.
+    #
+    # This goto only works at runtime. It does not stop the PHP compiler from seeing the function
+    # definition below it. In PHP, functions declared at the top level of a file are "hoisted"
+    # (defined as soon as the file is compiled), regardless of whether they are inside an if or
+    # after a goto.
     goto node_subinclude;
 }
 
-# f begin
-/*
- * @param string $fn Complete path to file.
- * @param string $critical Die if file does not exist.
- *
- * @return string Real path.
- */
-function f(string $fn, bool $critical = true): string|null
-{
-    if (file_exists($fn)) {
-        return $fn;
-    }
-
-    global $ROOT_PATHS;
-
-    $fn = ltrim(str_replace(ROOT_PATH, "", $fn), D);
-
-    foreach ($ROOT_PATHS as $path) {
-        $sfn = "{$path}{$fn}";
-        if (file_exists($sfn)) {
-            return $sfn;
+# Safeguard redeclaration of these functions from PHP compiler.
+if (!function_exists("f")) {
+    # f begin
+    /*
+     * @param string $fn Complete path to file.
+     * @param string $critical Die if file does not exist.
+     *
+     * @return string Real path.
+     */
+    function f(string $fn, bool $critical = true): string|null
+    {
+        if (file_exists($fn)) {
+            return $fn;
         }
-    }
 
-    return $critical
-        ? die("Error: function f() cannot find file: {$fn}")
-        : null;
-}
-# f end
+        global $ROOT_PATHS;
 
-# r begin
-function r(
-    string $logMessage,
-    string $logType = "Internal",
-    mixed $return = null,
-    null|array|object $dataArray = null,
-): mixed {
-    static $logDirs = [
-        "Internal" => LOG_PATH . "Internal" . D,
-        "Access" => LOG_PATH . "Access" . D,
-        "Error" => LOG_PATH . "Error" . D,
-        "Audit" => LOG_PATH . "Audit" . D,
-    ];
+        $fn = ltrim(str_replace(ROOT_PATH, "", $fn), D);
 
-    $logDir = $logDirs[$logType] ?? $logDirs["Internal"];
-
-    $date = date("Y-m-d");
-    $logFile = "{$logDir}{$date}.log";
-
-    $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
-    $caller = $backtrace[1]["function"] ?? "#rootcode";
-    $file = $backtrace[0]["file"] ?? "unknown";
-    $line = $backtrace[0]["line"] ?? 0;
-
-    $entry = [
-        "timestamp" => date("Y-m-d H:i:s"),
-        "type" => $logType,
-        "file" => str_replace(ROOT_PATH, "", $file),
-        "line" => $line,
-        "function" => $caller,
-        "message" => $logMessage,
-        "data" => $dataArray ? (array) $dataArray : null,
-        "result" => $return,
-    ];
-
-    if (PHP_SAPI !== "cli") {
-        $entry["ip"] = $_SERVER["REMOTE_ADDR"] ?? "cli";
-        $entry["method"] = $_SERVER["REQUEST_METHOD"] ?? "cli";
-        $entry["uri"] = $_SERVER["REQUEST_URI"] ?? "cli";
-
-        if (session_status() !== PHP_SESSION_NONE) {
-            $entry["session_id"] = session_id();
-            if (isset($_SESSION["loggedin"]["user_id"])) {
-                $entry["user_id"] = $_SESSION["loggedin"]["user_id"];
+        foreach ($ROOT_PATHS as $path) {
+            $sfn = "{$path}{$fn}";
+            if (file_exists($sfn)) {
+                return $sfn;
             }
         }
+
+        return $critical
+            ? die("Error: function f() cannot find file: {$fn}")
+            : null;
     }
+    # f end
 
-    file_put_contents(
-        $logFile,
-        json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) .
-            "\n",
-        FILE_APPEND,
-    );
+    # r begin
+    function r(
+        string $logMessage,
+        string $logType = "Internal",
+        mixed $return = null,
+        null|array|object $dataArray = null,
+    ): mixed {
+        static $logDirs = [
+            "Internal" => LOG_PATH . "Internal" . D,
+            "Access" => LOG_PATH . "Access" . D,
+            "Error" => LOG_PATH . "Error" . D,
+            "Audit" => LOG_PATH . "Audit" . D,
+        ];
 
-    return $return;
-}
-# r end
+        $logDir = $logDirs[$logType] ?? $logDirs["Internal"];
 
-# log_read_file begin
-function logReadFile(string $path): array
-{
-    if (!file_exists($path)) {
-        return [];
-    }
+        $date = date("Y-m-d");
+        $logFile = "{$logDir}{$date}.log";
 
-    $logs = [];
-    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+        $caller = $backtrace[1]["function"] ?? "#rootcode";
+        $file = $backtrace[0]["file"] ?? "unknown";
+        $line = $backtrace[0]["line"] ?? 0;
 
-    foreach ($lines as $line) {
-        if (trim($line) === "") {
-            continue;
-        }
+        $entry = [
+            "timestamp" => date("Y-m-d H:i:s"),
+            "type" => $logType,
+            "file" => str_replace(ROOT_PATH, "", $file),
+            "line" => $line,
+            "function" => $caller,
+            "message" => $logMessage,
+            "data" => $dataArray ? (array) $dataArray : null,
+            "result" => $return,
+        ];
 
-        try {
-            $logEntry = json_decode($line, true);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                $logs[] = $logEntry;
-            }
-        } catch (Exception $e) {
-            // Skip invalid JSON lines
-        }
-    }
+        if (PHP_SAPI !== "cli") {
+            $entry["ip"] = $_SERVER["REMOTE_ADDR"] ?? "cli";
+            $entry["method"] = $_SERVER["REQUEST_METHOD"] ?? "cli";
+            $entry["uri"] = $_SERVER["REQUEST_URI"] ?? "cli";
 
-    return $logs;
-}
-# log_read_file end
-
-# log_read_files_array begin
-function logReadFilesArray(array $arrayOfPathsToLogFiles): array
-{
-    if (empty($arrayOfPathsToLogFiles)) {
-        return [];
-    }
-
-    $allLogs = [];
-    foreach ($arrayOfPathsToLogFiles as $path) {
-        $allLogs = [...$allLogs, ...logReadFile($path)];
-    }
-
-    // Sort by timestamp (newest first)
-    usort(
-        $allLogs,
-        fn($a, $b) => strtotime($b["timestamp"] ?? "1970-01-01") <=>
-            strtotime($a["timestamp"] ?? "1970-01-01"),
-    );
-
-    return $allLogs;
-}
-# log_read_files_array end
-
-# get_all_log_files begin
-function getAllLogFiles(): array
-{
-    $logFiles = [];
-
-    // Internal logs from node structure
-    $logTypes = ["Internal", "Access", "Error", "Audit"];
-    foreach ($logTypes as $type) {
-        $logDir = LOG_PATH . $type . D;
-        if (is_dir($logDir)) {
-            $files = glob("{$logDir}*.log");
-            foreach ($files as $file) {
-                $logFiles[] = [
-                    "type" => $type,
-                    "path" => $file,
-                    "size" => filesize($file),
-                    "modified" => filemtime($file),
-                ];
+            if (session_status() !== PHP_SESSION_NONE) {
+                $entry["session_id"] = session_id();
+                if (isset($_SESSION["loggedin"]["user_id"])) {
+                    $entry["user_id"] = $_SESSION["loggedin"]["user_id"];
+                }
             }
         }
+
+        file_put_contents(
+            $logFile,
+            json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) .
+                "\n",
+            FILE_APPEND,
+        );
+
+        return $return;
     }
+    # r end
 
-    // System logs (Apache, Nginx)
-    $systemLogs = [
-        // Apache
-        "/var/log/apache2/access.log",
-        "/var/log/apache2/error.log",
-        "/var/log/httpd/access_log",
-        "/var/log/httpd/error_log",
-        // Nginx
-        "/var/log/nginx/access.log",
-        "/var/log/nginx/error.log",
-        // Common locations
-        "/var/log/syslog",
-        "/var/log/messages",
-    ];
-
-    foreach ($systemLogs as $logPath) {
-        if (file_exists($logPath) && is_readable($logPath)) {
-            $logFiles[] = [
-                "type" => "system",
-                "path" => $logPath,
-                "size" => filesize($logPath),
-                "modified" => filemtime($logPath),
-            ];
+    # log_read_file begin
+    function logReadFile(string $path): array
+    {
+        if (!file_exists($path)) {
+            return [];
         }
-    }
 
-    return $logFiles;
-}
-# get_all_log_files end
+        $logs = [];
+        $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 
-# walk_structure begin
-function walkStructure(
-    array $array,
-    callable $callback,
-    string $location = "",
-    string $LOCAL_PATH = "",
-): array {
-    $r = [];
-
-    if (!empty($array)) {
-        foreach ($array as $name => $val) {
-            if (is_numeric($name)) {
+        foreach ($lines as $line) {
+            if (trim($line) === "") {
                 continue;
             }
-            $path = "{$LOCAL_PATH}{$location}{$name}";
 
-            $r[] = $callback($path, $val);
+            try {
+                $logEntry = json_decode($line, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $logs[] = $logEntry;
+                }
+            } catch (Exception $e) {
+                // Skip invalid JSON lines
+            }
+        }
 
-            if (is_array($val)) {
-                $sub = array_is_list($val) ? array_flip($val) : $val;
-                $srl = "{$location}{$name}" . D;
+        return $logs;
+    }
+    # log_read_file end
 
-                $r = [
-                    ...$r,
-                    ...walkStructure($sub, $callback, $srl, $LOCAL_PATH),
+    # log_read_files_array begin
+    function logReadFilesArray(array $arrayOfPathsToLogFiles): array
+    {
+        if (empty($arrayOfPathsToLogFiles)) {
+            return [];
+        }
+
+        $allLogs = [];
+        foreach ($arrayOfPathsToLogFiles as $path) {
+            $allLogs = [...$allLogs, ...logReadFile($path)];
+        }
+
+        // Sort by timestamp (newest first)
+        usort(
+            $allLogs,
+            fn($a, $b) => strtotime($b["timestamp"] ?? "1970-01-01") <=>
+                strtotime($a["timestamp"] ?? "1970-01-01"),
+        );
+
+        return $allLogs;
+    }
+    # log_read_files_array end
+
+    # get_all_log_files begin
+    function getAllLogFiles(): array
+    {
+        $logFiles = [];
+
+        // Internal logs from node structure
+        $logTypes = ["Internal", "Access", "Error", "Audit"];
+        foreach ($logTypes as $type) {
+            $logDir = LOG_PATH . $type . D;
+            if (is_dir($logDir)) {
+                $files = glob("{$logDir}*.log");
+                foreach ($files as $file) {
+                    $logFiles[] = [
+                        "type" => $type,
+                        "path" => $file,
+                        "size" => filesize($file),
+                        "modified" => filemtime($file),
+                    ];
+                }
+            }
+        }
+
+        // System logs (Apache, Nginx)
+        $systemLogs = [
+            // Apache
+            "/var/log/apache2/access.log",
+            "/var/log/apache2/error.log",
+            "/var/log/httpd/access_log",
+            "/var/log/httpd/error_log",
+            // Nginx
+            "/var/log/nginx/access.log",
+            "/var/log/nginx/error.log",
+            // Common locations
+            "/var/log/syslog",
+            "/var/log/messages",
+        ];
+
+        foreach ($systemLogs as $logPath) {
+            if (file_exists($logPath) && is_readable($logPath)) {
+                $logFiles[] = [
+                    "type" => "system",
+                    "path" => $logPath,
+                    "size" => filesize($logPath),
+                    "modified" => filemtime($logPath),
                 ];
             }
         }
-    }
-    return array_filter($r, fn($x) => !empty($x));
-}
-# walk_structure end
 
-# deploy_structure begin
-if (function_exists("deployStructure") === !1) {
-    function deployStructure(?array $NODE_STRUCTURE = null): void
-    {
-        walkStructure(
-            $NODE_STRUCTURE ?? NODE_STRUCTURE,
-            function (string $path): string {
-                if (!is_dir($path)) {
-                    mkdir($path, 0777, true);
-                    return $path;
+        return $logFiles;
+    }
+    # get_all_log_files end
+
+    # walk_structure begin
+    function walkStructure(
+        array $array,
+        callable $callback,
+        string $location = "",
+        string $LOCAL_PATH = "",
+    ): array {
+        $r = [];
+
+        if (!empty($array)) {
+            foreach ($array as $name => $val) {
+                if (is_numeric($name)) {
+                    continue;
                 }
+                $path = "{$LOCAL_PATH}{$location}{$name}";
+
+                $r[] = $callback($path, $val);
+
+                if (is_array($val)) {
+                    $sub = array_is_list($val) ? array_flip($val) : $val;
+                    $srl = "{$location}{$name}" . D;
+
+                    $r = [
+                        ...$r,
+                        ...walkStructure($sub, $callback, $srl, $LOCAL_PATH),
+                    ];
+                }
+            }
+        }
+        return array_filter($r, fn($x) => !empty($x));
+    }
+    # walk_structure end
+
+    # deploy_structure begin
+    if (function_exists("deployStructure") === !1) {
+        function deployStructure(?array $NODE_STRUCTURE = null): void
+        {
+            walkStructure(
+                $NODE_STRUCTURE ?? NODE_STRUCTURE,
+                function (string $path): string {
+                    if (!is_dir($path)) {
+                        mkdir($path, 0777, true);
+                        return $path;
+                    }
+                    return "";
+                },
+                "",
+                ROOT_PATH,
+            );
+        }
+        deployStructure($NODE_STRUCTURE); # Only deploy for main entrypoint node.
+    }
+    # deploy_structure end
+
+    # vendor_autoload begin
+    /**
+     * @var string $LOCAL_PATH Node.php defined path of current node.
+     */
+
+    $LOCAL_VENDOR = "{$LOCAL_PATH}vendor" . D . "autoload.php";
+    if (file_exists($LOCAL_VENDOR)) {
+        include_once $LOCAL_VENDOR;
+    }
+    unset($LOCAL_VENDOR);
+    # vendor_autoload end
+
+    # include_structure begin
+    function includeStructure(array $STRUCTURE, string $PATH, array $NODES): void
+    {
+        $walk = function (string $path): string {
+            if (strpos($path, "..") !== false) {
                 return "";
+            }
+
+            # Exclude from runtimes
+            $e = ["Git", "Test", "Public", "Log", "Deprecated", "Backup"];
+            if (PHP_SAPI !== "cli") {
+                $e = [...$e, ...["Migration"]];
+            }
+
+            foreach ($e as $part) {
+                $ex = D . $part . D;
+                if (strpos($path, $ex)) {
+                    return "";
+                }
+            }
+
+            if (is_dir($path)) {
+                if ($php = glob($path . D . "*.php")) {
+                    foreach ($php as $fn) {
+                        include_once $fn;
+
+                        return $fn;
+                    }
+                }
+            }
+            return "";
+        };
+
+        # Walk local resources.
+        walkStructure($STRUCTURE, $walk, "", $PATH);
+
+        # Include requested nodes.
+        if (is_array($NODES) && !empty($NODES)) {
+            foreach ($NODES as $node) {
+                $path = $PATH . ".." . D . $node;
+
+                if ($check = realpath($path)) {
+                    $file = $check . D . "node.php";
+                    $size = filesize(__FILE__);
+
+                    if (file_exists($file) && filesize($file) === $size) {
+                        include_once $file;
+                    } else {
+                        # Impossible optimization:
+                        # 1. set new node location,
+                        # 2. goto to beginnong of current node.php,
+                        # 3. process as if in included node
+                        # 4. continue within this oop
+                        # instead we throw
+
+                        throw new Exception(
+                            "Node {$PATH} requires node that is different at: {$path}.\nFix this by updating php node git Node\ngit pull",
+                            0,
+                        );
+                    }
+                } else {
+                    # Targeted directory simply did not exist.
+                    throw new Exception(
+                        "Node {$PATH} requires node that does not exist at: {$path}.\nFix this path or remove {$node} from node.json",
+                        0,
+                    );
+                }
+            }
+        }
+    }
+    # include_structure end
+
+    # call_structure begin
+    function callStructure(): array
+    {
+        static $calls = [];
+        static $structure = [];
+
+        if (!empty($structure)) {
+            return $structure;
+        }
+
+        $structure = walkStructure(
+            NODE_STRUCTURE,
+            function (string $path, mixed $v) use (&$calls): array {
+                if (glob($path . D . "*", GLOB_ONLYDIR)) {
+                    return [];
+                }
+
+                $exp = explode(D, $path);
+
+                $i = 0;
+                $l = count($exp);
+
+                do {
+                    $i++;
+                    $slice = array_slice($exp, $l - $i, $i);
+                    $call = implode(D, $slice);
+                    if (!in_array($call, $calls, true)) {
+                        $calls[] = $call;
+                        break;
+                    }
+                } while ($i < $l);
+
+                return [$call, $path, $v];
             },
             "",
             ROOT_PATH,
         );
-    }
-    deployStructure($NODE_STRUCTURE); # Only deploy for main entrypoint node.
-}
-# deploy_structure end
-
-# vendor_autoload begin
-/**
- * @var string $LOCAL_PATH Node.php defined path of current node.
- */
-
-$LOCAL_VENDOR = "{$LOCAL_PATH}vendor" . D . "autoload.php";
-if (file_exists($LOCAL_VENDOR)) {
-    include_once $LOCAL_VENDOR;
-}
-unset($LOCAL_VENDOR);
-# vendor_autoload end
-
-# include_structure begin
-function includeStructure(array $STRUCTURE, string $PATH, array $NODES): void
-{
-    $walk = function (string $path): string {
-        if (strpos($path, "..") !== false) {
-            return "";
-        }
-
-        # Exclude from runtimes
-        $e = ["Git", "Test", "Public", "Log", "Deprecated", "Backup"];
-        if (PHP_SAPI !== "cli") {
-            $e = [...$e, ...["Migration"]];
-        }
-
-        foreach ($e as $part) {
-            $ex = D . $part . D;
-            if (strpos($path, $ex)) {
-                return "";
-            }
-        }
-
-        if (is_dir($path)) {
-            if ($php = glob($path . D . "*.php")) {
-                foreach ($php as $fn) {
-                    include_once $fn;
-
-                    return $fn;
-                }
-            }
-        }
-        return "";
-    };
-
-    # Walk local resources.
-    walkStructure($STRUCTURE, $walk, "", $PATH);
-
-    # Include requested nodes.
-    if (is_array($NODES) && !empty($NODES)) {
-        foreach ($NODES as $node) {
-            $path = $PATH . ".." . D . $node;
-
-            if ($check = realpath($path)) {
-                $file = $check . D . "node.php";
-                $size = filesize(__FILE__);
-
-                if (file_exists($file) && filesize($file) === $size) {
-                    include_once $file;
-                } else {
-                    # Impossible optimization:
-                    # 1. set new node location,
-                    # 2. goto to beginnong of current node.php,
-                    # 3. process as if in included node
-                    # 4. continue within this oop
-                    # instead we throw
-
-                    throw new Exception(
-                        "Node {$PATH} requires node that is different at: {$path}.\nFix this by updating php node git Node\ngit pull",
-                        0,
-                    );
-                }
-            } else {
-                # Targeted directory simply did not exist.
-                throw new Exception(
-                    "Node {$PATH} requires node that does not exist at: {$path}.\nFix this path or remove {$node} from node.json",
-                    0,
-                );
-            }
-        }
-    }
-}
-# include_structure end
-
-# call_structure begin
-function callStructure(): array
-{
-    static $calls = [];
-    static $structure = [];
-
-    if (!empty($structure)) {
         return $structure;
     }
+    # call_structure end
 
-    $structure = walkStructure(
-        NODE_STRUCTURE,
-        function (string $path, mixed $v) use (&$calls): array {
-            if (glob($path . D . "*", GLOB_ONLYDIR)) {
-                return [];
-            }
+    # generate_boilerplate begin
+    function generateBoilerplate(
+        string $call,
+        string $name,
+        string $LOCAL_PATH,
+    ): array {
+        $call = str_starts_with($call, $LOCAL_PATH)
+            ? substr($call, strlen($LOCAL_PATH))
+            : $call;
 
-            $exp = explode(D, $path);
+        $parts = explode(D, trim($call, D));
+        $parts = array_filter($parts, fn($p) => !empty($p));
 
-            $i = 0;
-            $l = count($exp);
+        $leaf = end($parts); // e.g., Repository, Command, Controller
+        $type = reset($parts); // e.g., Class, Interface, Function
 
-            do {
-                $i++;
-                $slice = array_slice($exp, $l - $i, $i);
-                $call = implode(D, $slice);
-                if (!in_array($call, $calls, true)) {
-                    $calls[] = $call;
-                    break;
-                }
-            } while ($i < $l);
+        $namespace = !empty($parts)
+            ? "namespace " . implode("\\", array_map("ucfirst", $parts)) . ";\n\n"
+            : "";
 
-            return [$call, $path, $v];
-        },
-        "",
-        ROOT_PATH,
-    );
-    return $structure;
+        $keyword = match ($type) {
+            "Interface" => "interface",
+            "Trait" => "trait",
+            "Function" => "function",
+            "Class" => in_array($parts[0] ?? "", ["Final", "Abstract"])
+                ? strtolower($parts[0]) . " class"
+                : "class",
+            "Enum" => "enum",
+            default => "class",
+        };
+
+        $className = match ($type) {
+            "Enum" => $name,
+            "Function" => $name,
+            default => "{$name}{$leaf}",
+        };
+
+        // Generate appropriate body
+        $body = match ($type) {
+            "Interface" => "\n{\n\tpublic function execute(): void;\n}\n",
+            "Function" => "\n{\n\t# TODO: Implement {$name} function\n}\n",
+            "Trait" => "\n{\n\t# TODO: Implement trait methods\n}\n",
+            "Class"
+                => "\n{\n\tpublic function __construct()\n\t{\n\t\t# TODO: Initialize constructor\n\t}\n}\n",
+            default => "\n{\n}\n",
+        };
+
+        return [
+            <<<PHP
+            <?php declare(strict_types=1);
+
+            {$namespace}{$keyword} {$className}{$body}
+            PHP
+            ,
+            $leaf,
+        ];
+    }
+    # generate_boilerplate end
 }
-# call_structure end
-
-# generate_boilerplate begin
-function generateBoilerplate(
-    string $call,
-    string $name,
-    string $LOCAL_PATH,
-): array {
-    $call = str_starts_with($call, $LOCAL_PATH)
-        ? substr($call, strlen($LOCAL_PATH))
-        : $call;
-
-    $parts = explode(D, trim($call, D));
-    $parts = array_filter($parts, fn($p) => !empty($p));
-
-    $leaf = end($parts); // e.g., Repository, Command, Controller
-    $type = reset($parts); // e.g., Class, Interface, Function
-
-    $namespace = !empty($parts)
-        ? "namespace " . implode("\\", array_map("ucfirst", $parts)) . ";\n\n"
-        : "";
-
-    $keyword = match ($type) {
-        "Interface" => "interface",
-        "Trait" => "trait",
-        "Function" => "function",
-        "Class" => in_array($parts[0] ?? "", ["Final", "Abstract"])
-            ? strtolower($parts[0]) . " class"
-            : "class",
-        "Enum" => "enum",
-        default => "class",
-    };
-
-    $className = match ($type) {
-        "Enum" => $name,
-        "Function" => $name,
-        default => "{$name}{$leaf}",
-    };
-
-    // Generate appropriate body
-    $body = match ($type) {
-        "Interface" => "\n{\n\tpublic function execute(): void;\n}\n",
-        "Function" => "\n{\n\t# TODO: Implement {$name} function\n}\n",
-        "Trait" => "\n{\n\t# TODO: Implement trait methods\n}\n",
-        "Class"
-            => "\n{\n\tpublic function __construct()\n\t{\n\t\t# TODO: Initialize constructor\n\t}\n}\n",
-        default => "\n{\n}\n",
-    };
-
-    return [
-        <<<PHP
-        <?php declare(strict_types=1);
-
-        {$namespace}{$keyword} {$className}{$body}
-        PHP
-        ,
-        $leaf,
-    ];
-}
-# generate_boilerplate end
-
 node_subinclude:
 
 # Include this node files and if $NODE_REQUIRE is not empty do subincludes.
