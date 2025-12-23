@@ -2593,6 +2593,1198 @@ if ($LOCAL_PATH === ROOT_PATH) {
         }
         # cli_new end
 
+        # cli_rank begin
+        function cli_rank(bool $tooltip = false, array $argv = []): string
+        {
+            if ($tooltip) {
+                return "<file> <?func> Analyze and rank file contents";
+            }
+
+            $file = $argv[0] ?? "";
+            if (!$file || !file_exists($file)) {
+                return "E: Provide valid file path\n";
+            }
+
+            $src = file_get_contents($file);
+            $fns = _file_functions($src);
+
+            if (empty($fns)) {
+                return "No functions found in file\n";
+            }
+
+            $fileMetrics = computeFileMetrics($src);
+            $fileTotal = array_sum($fileMetrics);
+
+            $targetFn = $argv[1] ?? null;
+            if ($targetFn && !in_array($targetFn, $fns)) {
+                return "E: Function '{$targetFn}' not found in file\n";
+            }
+
+            if ($targetFn) {
+                $fns = [$targetFn];
+            }
+
+            $analysis = [];
+            foreach ($fns as $fn) {
+                $body = getFunctionBodyWithDocblock($src, $fn);
+                $rawScore = 0.0;
+                $functionMetrics = [];
+
+                $functionMetrics["call"] = $value = metricCalls($src, $fn, $body);
+                $rawScore += $value;
+                $functionMetrics["docs"] = $value = metricDocblock($fn, $body);
+                $rawScore += $value;
+                $functionMetrics["ln"] = $value = metricLines($fn, $body);
+                $rawScore += $value;
+                $functionMetrics["args"] = $value = metricParameters($fn, $body);
+                $rawScore += $value;
+                $functionMetrics["branch"] = $value = metricBranching($fn, $body);
+                $rawScore += $value;
+                $functionMetrics["divisions"] = $value = metricDivision($fn, $body);
+                $rawScore += $value;
+                $functionMetrics["string_ops"] = $value = metricStringOps($fn, $body);
+                $rawScore += $value;
+                $functionMetrics["builtin"] = $value = metricBuiltinUsage($fn, $body);
+                $rawScore += $value;
+
+                $analysis[$fn] = [
+                    "metrics" => $functionMetrics,
+                    "file" => $fileMetrics,
+                    "raw" => $rawScore,
+                    "score" => $rawScore + $fileTotal,
+                ];
+            }
+
+            if ($targetFn) {
+                $data = $analysis[$targetFn];
+                $output = "Function: {$targetFn}()\n";
+                $output .= "Total Score: " . number_format($data["score"], 1) . "\n";
+                $output .= "Raw Score: " . number_format($data["raw"], 1) . "\n";
+                $output .= "File Score: " . number_format($fileTotal, 1) . "\n\n";
+
+                $output .= "Metrics:\n";
+                foreach ($data["metrics"] as $metric => $value) {
+                    if ($value != 0) {
+                        $output .= "* {$metric}: " . number_format($value, 1) . "\n";
+                    }
+                }
+
+                return $output;
+            }
+
+            usort(
+                $fns,
+                fn($a, $b) => $analysis[$a]["score"] <=> $analysis[$b]["score"],
+            );
+
+            $output = "File Score: " . number_format($fileTotal, 1) . "\n";
+
+            $worst = $fns;
+            $maxLen = max(array_map("strlen", $fns));
+            $best = array_slice(array_reverse($fns), -min(2, count($fns)));
+
+            if (!empty($best)) {
+                $output .= "\nTop Functions:\n";
+                foreach ($best as $fn) {
+                    $score = $analysis[$fn]["score"];
+                    $output .=
+                        "* {$fn}(); " .
+                        str_repeat(" ", $maxLen - strlen($fn)) .
+                        number_format($score, 1) .
+                        "\n";
+                }
+            }
+
+            if (!empty($worst)) {
+                $output .= "\nNeeds Improvement:\n";
+                foreach ($worst as $fn) {
+                    $score = $analysis[$fn]["score"];
+                    $output .=
+                        "* {$fn}(); " .
+                        str_repeat(" ", $maxLen - strlen($fn)) .
+                        number_format($score, 1) .
+                        " // ";
+                    foreach ($analysis[$fn]["metrics"] as $metric => $value) {
+                        if ($value != 0) {
+                            $output .= "{$metric}: " . number_format($value, 1) . "; ";
+                        }
+                    }
+                    $output .= "\n";
+                }
+            }
+
+            $positiveMetrics = [];
+            $negativeMetrics = [];
+
+            foreach ($fileMetrics as $metric => $value) {
+                if ($value > 0) {
+                    $positiveMetrics[] = [$metric, $value];
+                } elseif ($value < 0) {
+                    $negativeMetrics[] = [$metric, $value];
+                }
+            }
+
+            usort($positiveMetrics, fn($a, $b) => $b[1] <=> $a[1]);
+            usort($negativeMetrics, fn($a, $b) => $a[1] <=> $b[1]);
+
+            $metricItems = [];
+            foreach ($positiveMetrics as [$metric, $value]) {
+                $metricItems[] = [$metric, number_format($value, 1)];
+            }
+            foreach ($negativeMetrics as [$metric, $value]) {
+                $metricItems[] = [$metric, number_format($value, 1)];
+            }
+
+            $maxlenMetric = 0;
+            foreach ($metricItems as $item) {
+                $len = strlen("{$item[0]} {$item[1]}");
+                if ($len > $maxlenMetric) {
+                    $maxlenMetric = $len;
+                }
+            }
+
+            $thirdMetric = (int) ceil(count($metricItems) / 3);
+            $metricLines = [];
+
+            for ($i = 0; $i < $thirdMetric; $i++) {
+                $line = "";
+                $col1 = $metricItems[$i] ?? null;
+                $col2 = $metricItems[$i + $thirdMetric] ?? null;
+                $col3 = $metricItems[$i + $thirdMetric * 2] ?? null;
+
+                if ($col1) {
+                    $line .= "{$col1[0]} {$col1[1]}";
+                    $line .= str_repeat(
+                        " ",
+                        $maxlenMetric - strlen("{$col1[0]} {$col1[1]}") + 2,
+                    );
+                }
+
+                if ($col2) {
+                    $line .= "{$col2[0]} {$col2[1]}";
+                    $line .= str_repeat(
+                        " ",
+                        $maxlenMetric - strlen("{$col2[0]} {$col2[1]}") + 2,
+                    );
+                }
+
+                if ($col3) {
+                    $line .= "{$col3[0]} {$col3[1]}";
+                }
+
+                $metricLines[] = $line;
+            }
+
+            $output .= "\nFile Metrics:\n" . implode("\n", $metricLines) . "\n";
+
+            return $output;
+        }
+
+        # _file_functions begin
+        function _file_functions(string $src): array
+        {
+            return preg_match_all(
+                '/function\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/',
+                $src,
+                $m,
+            )
+                ? $m[1]
+                : [];
+        }
+        # _file_functions end
+
+        # get_function_body_with_docblock begin
+        function getFunctionBodyWithDocblock(string $src, string $functionName): string
+        {
+            $ename = preg_quote($functionName, "/");
+            $pattern =
+                "/(?:\/\*\*(?:[^*]|\*(?!\/))*\*\/\s*)?\s*(?:(?:public|private|protected|static)\s+)*function\s+" .
+                $ename .
+                "\s*\([^)]*\)\s*(?::\s*[^\s{]+)?\s*\{((?:[^{}]+|\{(?:[^{}]+|\{[^{}]*\})*\})*)\}/s";
+            if (preg_match($pattern, $src, $m)) {
+                return $m[0];
+            }
+            return extractFunctionWithBraceCounting($src, $functionName);
+        }
+        # get_function_body_with_docblock end
+
+        # extract_function_with_brace_counting begin
+        function extractFunctionWithBraceCounting(
+            string $src,
+            string $functionName,
+        ): string {
+            $ename = preg_quote($functionName, "/");
+            $declPat =
+                "/(?:\/\*\*.*?\*\/\s*)?\s*(?:(?:public|private|protected|static)\s+)*function\s+" .
+                $ename .
+                "\s*\([^)]*\)\s*(?::\s*[^\s{]+)?\s*\{/s";
+            if (!preg_match($declPat, $src, $m, PREG_OFFSET_CAPTURE)) {
+                return "";
+            }
+            $startPos = $m[0][1];
+            $openingBracePos = strpos($src, "{", $startPos);
+            if ($openingBracePos === false) {
+                return "";
+            }
+
+            $braceCount = 1;
+            $inString = false;
+            $schar = "";
+            $esc = false;
+            $len = strlen($src);
+
+            for ($i = $openingBracePos + 1; $i < $len; $i++) {
+                $c = $src[$i];
+                if (!$inString) {
+                    if ($c === "{") {
+                        $braceCount++;
+                    } elseif ($c === "}") {
+                        $braceCount--;
+                        if ($braceCount === 0) {
+                            $fstart = findFunctionStart($src, $startPos);
+                            return substr($src, $fstart, $i - $fstart + 1);
+                        }
+                    } elseif ($c === '"' || $c === "'" || $c === "`") {
+                        $inString = true;
+                        $schar = $c;
+                    }
+                } else {
+                    if (!$esc) {
+                        if ($c === $schar) {
+                            $inString = false;
+                        } elseif ($c === "\\") {
+                            $esc = true;
+                        }
+                    } else {
+                        $esc = false;
+                    }
+                }
+            }
+            return "";
+        }
+        # extract_function_with_brace_counting end
+
+        # find_function_start begin
+        function findFunctionStart(string $src, int $pos): int
+        {
+            $limit = max(0, $pos - 1000);
+            for ($i = $pos - 1; $i >= $limit; $i--) {
+                if ($i > 1 && $src[$i] === "/" && $src[$i - 1] === "*") {
+                    for ($j = $i - 2; $j >= $limit; $j--) {
+                        if ($j > 0 && $src[$j] === "/" && $src[$j - 1] === "*") {
+                            return $j - 1;
+                        }
+                    }
+                }
+                if (
+                    $i > 5 &&
+                    preg_match(
+                        '/\n\s*(?:public|private|protected|static)\b/',
+                        substr($src, $i - 6, 7),
+                    )
+                ) {
+                    for ($j = $i - 6; $j >= $limit; $j--) {
+                        if ($src[$j] === "\n") {
+                            return $j + 1;
+                        }
+                    }
+                    return max(0, $i - 6);
+                }
+            }
+            return $pos;
+        }
+        # find_function_start end
+
+        # compute_file_metrics begin
+        function computeFileMetrics(string $src): array
+        {
+            return [
+                "strict_types" => _file_strict_types($src),
+                "typed_properties" => _file_typed_properties($src),
+                "namespace" => _file_namespace($src),
+                "no_superglobals" => _file_no_superglobals($src),
+                "final_class" => _file_final_class($src),
+                "modern_visibility" => _file_modern_visibility($src),
+                "constructor_property_promotion" => _file_constructor_property_promotion(
+                    $src,
+                ),
+                "union_types" => _file_union_types($src),
+                "nullsafe_operator" => _file_nullsafe_operator($src),
+                "match_expression" => _file_match_expression($src),
+                "named_arguments" => _file_named_arguments($src),
+                "attributes" => _file_attributes($src),
+                "enums" => _file_enums($src),
+                "readonly_properties" => _file_readonly_properties($src),
+                "never_return_type" => _file_never_return_type($src),
+                "array_is_list" => _file_array_is_list($src),
+                "first_class_callable" => _file_first_class_callable($src),
+                "pure_annotations" => _file_pure_annotations($src),
+                "immutable_objects" => _file_immutable_objects($src),
+                "cohesion" => _file_cohesion($src),
+                "cyclomatic_complexity" => _file_cyclomatic_complexity($src),
+                "dependency_inversion" => _file_dependency_inversion($src),
+                "no_magic_numbers" => _file_no_magic_numbers($src),
+                "no_global_functions" => _file_no_global_functions($src),
+                "interface_segregation" => _file_interface_segregation($src),
+                "single_responsibility" => _file_single_responsibility($src),
+                "security_metrics" => _file_security_metrics($src),
+                "performance_hints" => _file_performance_hints($src),
+                "documentation" => _file_documentation($src),
+                "test_coverage" => _file_test_coverage($src),
+                "coding_standards" => _file_coding_standards($src),
+            ];
+        }
+        # compute_file_metrics end
+
+        # _file_nullsafe_operator begin
+        function _file_nullsafe_operator(string $src): float
+        {
+            $matches = preg_match_all("/\?\->/", $src);
+            return $matches * 1.0;
+        }
+        # _file_nullsafe_operator end
+
+        # _file_match_expression begin
+        function _file_match_expression(string $src): float
+        {
+            $matchCount = preg_match_all("/\bmatch\s*\(/", $src);
+            $switchCount = preg_match_all("/\bswitch\s*\(/", $src);
+
+            if ($switchCount === 0) {
+                return 0.0;
+            }
+            $ratio = $matchCount / $switchCount;
+            return $ratio * 3.0;
+        }
+        # _file_match_expression end
+
+        # _file_named_arguments begin
+        function _file_named_arguments(string $src): float
+        {
+            $matches = preg_match_all("/\w+\s*\([^)]*?\b\w+\s*:/", $src);
+            return $matches * 0.8;
+        }
+        # _file_named_arguments end
+
+        # _file_attributes begin
+        function _file_attributes(string $src): float
+        {
+            $matches = preg_match_all("/#\[(?!Deprecated\b|\w+\(deprecated)/", $src);
+            return $matches * 2.0;
+        }
+        # _file_attributes end
+
+        # _file_enums begin
+        function _file_enums(string $src): float
+        {
+            $matches = preg_match_all("/\benum\s+\w+/", $src);
+            return $matches * 4.0;
+        }
+        # _file_enums end
+
+        # _file_array_is_list begin
+        function _file_array_is_list(string $src): float
+        {
+            $arrayIsList = preg_match_all("/\barray_is_list\s*\(/", $src);
+            $manualChecks = preg_match_all(
+                '/(?:array_keys\s*\(\s*\$[^)]+\)\s*===\s*range\s*\(|isset\s*\(\s*\$[^)]+\[\d+\])/',
+                $src,
+            );
+
+            if ($manualChecks === 0) {
+                return 0.0;
+            }
+            $ratio = $arrayIsList / $manualChecks;
+            return $ratio * 2.0;
+        }
+        # _file_array_is_list end
+
+        # _file_first_class_callable begin
+        function _file_first_class_callable(string $src): float
+        {
+            $matches = preg_match_all("/(\w+(?:::)?\w*)\s*\(\.\.\.\)/", $src);
+            return $matches * 2.0;
+        }
+        # _file_first_class_callable end
+
+        # _file_pure_annotations begin
+        function _file_pure_annotations(string $src): float
+        {
+            $hasReturnTypeWillChange = preg_match(
+                "/#\[\s*ReturnTypeWillChange\s*\]/",
+                $src,
+            );
+            $hasPure = preg_match("/@psalm-(pure|immutable)|#\[Pure\]/", $src);
+
+            return ($hasPure ? 2.0 : 0.0) - ($hasReturnTypeWillChange ? 1.0 : 0.0);
+        }
+        # _file_pure_annotations end
+
+        # _file_constructor_property_promotion begin
+        function _file_constructor_property_promotion(string $src): float
+        {
+            $pattern =
+                '/public\s+function\s+__construct\s*\((?:[^)]*?\b(?:public|protected|private)\s+(?:readonly\s+)?(?:[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??(?:\s*\|\s*[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??)*)\s+\$\w+(?:\s*=[^,)]+)?[^)]*)+\)/s';
+            $matches = preg_match_all($pattern, $src);
+            return $matches * 2.5;
+        }
+        # _file_constructor_property_promotion end
+
+        # _file_union_types begin
+        function _file_union_types(string $src): float
+        {
+            $pattern1 =
+                '/function\s+\w+\s*\([^)]*?\b(?:[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??(?:\s*\|\s*[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??)*)\s+\$\w+\s*:[^)]*?\|[^)]*?\)/';
+            $pattern2 =
+                '/@(?:param|return|var|property)\s+(?:[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??(?:\s*\|\s*[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??)*)\|/';
+
+            $matches = 0;
+            $matches += preg_match_all($pattern1, $src);
+            $matches += preg_match_all($pattern2, $src);
+
+            return $matches * 1.2;
+        }
+        # _file_union_types end
+
+        # _file_readonly_properties begin
+        function _file_readonly_properties(string $src): float
+        {
+            $pattern =
+                '/\b(?:public|protected|private)\s+readonly\s+(?:static\s+)?(?:[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??(?:\s*\|\s*[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??)*)\s+\$\w+/';
+            $matches = preg_match_all($pattern, $src);
+            return $matches * 3.0;
+        }
+        # _file_readonly_properties end
+
+        # _file_never_return_type begin
+        function _file_never_return_type(string $src): float
+        {
+            $matches = preg_match_all("/:\s*never\b/", $src);
+            return $matches * 2.5;
+        }
+        # _file_never_return_type end
+
+        # _file_immutable_objects begin
+        function _file_immutable_objects(string $src): float
+        {
+            $hasNoSetters = !preg_match("/public\s+function\s+set\w+\s*\(/", $src);
+
+            $privatePattern =
+                '/private\s+(?:readonly\s+)?(?:[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??(?:\s*\|\s*[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??)*)\s+\$\w+/';
+            $totalPattern =
+                '/(?:public|protected|private)\s+(?:readonly\s+)?(?:static\s+)?(?:[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??(?:\s*\|\s*[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??)*)\s+\$\w+/';
+
+            $hasAllPropertiesPrivate = preg_match_all($privatePattern, $src);
+            $totalProperties = preg_match_all($totalPattern, $src);
+
+            if ($totalProperties === 0) {
+                return 0.0;
+            }
+
+            $privateRatio = $hasAllPropertiesPrivate / $totalProperties;
+            $immutabilityScore = $privateRatio * 5.0;
+            return $hasNoSetters ? $immutabilityScore + 2.0 : $immutabilityScore;
+        }
+        # _file_immutable_objects end
+
+        # _file_cohesion begin
+        function _file_cohesion(string $src): float
+        {
+            preg_match_all(
+                "/\bclass\s+(\w+).*?\{(.*?)\}\s*(?=class|\Z)/s",
+                $src,
+                $matches,
+                PREG_SET_ORDER,
+            );
+
+            $cohesionScore = 0.0;
+            $classCount = 0;
+
+            foreach ($matches as $match) {
+                $classBody = $match[2];
+
+                preg_match_all(
+                    "/(?:public|protected|private)\s+function\s+(\w+)\s*\([^)]*\)\s*\{(.*?)\}(?=\s*(?:public|protected|private)\s+function|\Z)/s",
+                    $classBody,
+                    $methods,
+                    PREG_SET_ORDER,
+                );
+
+                $methodCount = count($methods);
+                if ($methodCount < 2) {
+                    continue;
+                }
+
+                $sharedPropertyUsage = 0;
+                foreach ($methods as $i => $method1) {
+                    foreach ($methods as $j => $method2) {
+                        if ($i >= $j) {
+                            continue;
+                        }
+                        preg_match_all(
+                            '/\$this->(\w+)/',
+                            $method1[2] . " " . $method2[2],
+                            $sharedProps,
+                        );
+                        if (count(array_unique($sharedProps[1] ?? [])) > 0) {
+                            $sharedPropertyUsage++;
+                        }
+                    }
+                }
+
+                $maxPairs = ($methodCount * ($methodCount - 1)) / 2;
+                if ($maxPairs > 0) {
+                    $cohesionScore += ($sharedPropertyUsage / $maxPairs) * 10.0;
+                    $classCount++;
+                }
+            }
+
+            return $classCount > 0 ? $cohesionScore / $classCount : 0.0;
+        }
+        # _file_cohesion end
+
+        # _file_cyclomatic_complexity begin
+        function _file_cyclomatic_complexity(string $src): float
+        {
+            $decisionPoints = preg_match_all(
+                "/\b(?:if|elseif|while|for|foreach|case|catch|and\s*\(|or\s*\(|\|\||&&)\b/",
+                $src,
+            );
+            $functions = preg_match_all("/function\s+\w+\s*\(/", $src);
+
+            if ($functions === 0) {
+                return 0.0;
+            }
+
+            $avgComplexity = $decisionPoints / $functions;
+
+            if ($avgComplexity <= 5) {
+                return 0.0;
+            }
+            if ($avgComplexity <= 10) {
+                return -3.0;
+            }
+            if ($avgComplexity <= 15) {
+                return -6.0;
+            }
+            if ($avgComplexity <= 20) {
+                return -9.0;
+            }
+            return -12.0;
+        }
+        # _file_cyclomatic_complexity end
+
+        # _file_dependency_inversion begin
+        function _file_dependency_inversion(string $src): float
+        {
+            $interfaceParams = preg_match_all(
+                '/@param\s+(\w+)\s+\$\w+/',
+                $src,
+                $paramMatches,
+            );
+            $totalParams = preg_match_all(
+                "/function\s+\w+\s*\(([^)]*)\)/",
+                $src,
+                $funcMatches,
+            );
+
+            $interfaceCount = 0;
+            foreach ($paramMatches[1] ?? [] as $type) {
+                if (
+                    preg_match("/^[A-Z]/", $type) &&
+                    !preg_match(
+                        '/^(int|string|bool|float|array|callable|iterable|mixed|void)$/',
+                        $type,
+                    )
+                ) {
+                    $interfaceCount++;
+                }
+            }
+
+            if ($totalParams === 0) {
+                return 0.0;
+            }
+
+            $ratio = $interfaceCount / $totalParams;
+            return $ratio * 10.0;
+        }
+        # _file_dependency_inversion end
+
+        # _file_no_magic_numbers begin
+        function _file_no_magic_numbers(string $src): float
+        {
+            $constants = preg_match_all("/\bconst\s+\w+\s*=/", $src);
+            $magicNumbers = preg_match_all("/\b(?:[1-9]\d*|0)\b(?!\s*::)/", $src);
+
+            if ($magicNumbers === 0) {
+                return 0.0;
+            }
+
+            $ratio = $constants / $magicNumbers;
+            return $ratio * 10.0;
+        }
+        # _file_no_magic_numbers end
+
+        # _file_no_global_functions begin
+        function _file_no_global_functions(string $src): float
+        {
+            $globalFunctions = preg_match_all(
+                "/\b(?:header|setcookie|session_start|mysql_|pg_)\s*\(/i",
+                $src,
+            );
+            $wrappedCalls = preg_match_all(
+                "/->(?:setHeader|setCookie|startSession|query)\s*\(/",
+                $src,
+            );
+
+            if ($globalFunctions === 0) {
+                return 0.0;
+            }
+
+            $ratio = $wrappedCalls / $globalFunctions;
+            return $ratio * 10.0;
+        }
+        # _file_no_global_functions end
+
+        # _file_interface_segregation begin
+        function _file_interface_segregation(string $src): float
+        {
+            $interfaceMethods = preg_match_all(
+                "/interface\s+\w+\s*\{[^}]*\bfunction\s+\w+\s*\([^)]*\)[^}]+\}/s",
+                $src,
+                $interfaceMatches,
+            );
+            $avgMethodsPerInterface = 0;
+
+            foreach ($interfaceMatches[0] ?? [] as $interface) {
+                $methodCount = preg_match_all("/function\s+\w+\s*\(/", $interface);
+                $avgMethodsPerInterface += $methodCount;
+            }
+
+            if ($interfaceMethods === 0) {
+                return 0.0;
+            }
+
+            $avgMethodsPerInterface /= $interfaceMethods;
+
+            if ($avgMethodsPerInterface <= 3) {
+                return 0.0;
+            }
+            if ($avgMethodsPerInterface <= 5) {
+                return -3.0;
+            }
+            if ($avgMethodsPerInterface <= 8) {
+                return -6.0;
+            }
+            return -9.0;
+        }
+        # _file_interface_segregation end
+
+        # _file_single_responsibility begin
+        function _file_single_responsibility(string $src): float
+        {
+            $linesPerClass = [];
+            preg_match_all(
+                "/\bclass\s+\w+(?:.*?)\{(.*?)\}(?=\s*class|\Z)/s",
+                $src,
+                $classMatches,
+                PREG_SET_ORDER,
+            );
+
+            foreach ($classMatches as $match) {
+                $lines = substr_count($match[1], "\n");
+                $linesPerClass[] = $lines;
+            }
+
+            if (empty($linesPerClass)) {
+                return 0.0;
+            }
+
+            $avgLines = array_sum($linesPerClass) / count($linesPerClass);
+
+            if ($avgLines <= 50) {
+                return 0.0;
+            }
+            if ($avgLines <= 100) {
+                return -2.0;
+            }
+            if ($avgLines <= 200) {
+                return -5.0;
+            }
+            if ($avgLines <= 300) {
+                return -8.0;
+            }
+            return -12.0;
+        }
+        # _file_single_responsibility end
+
+        # _file_security_metrics begin
+        function _file_security_metrics(string $src): float
+        {
+            $penalty = 0.0;
+
+            $sqlInjection = preg_match_all(
+                '/\$_(?:GET|POST)\s*\[.*?\]\s*\.\s*\$/',
+                $src,
+            );
+            $penalty -= $sqlInjection * 15.0;
+
+            $xss = preg_match_all('/echo\s+\$_(?:GET|POST|REQUEST)\s*\[/i', $src);
+            $penalty -= $xss * 12.0;
+
+            $fileInclusion = preg_match_all(
+                '/(?:include|require)(?:_once)?\s*\(\s*\$/',
+                $src,
+            );
+            $penalty -= $fileInclusion * 10.0;
+
+            $positive = 0.0;
+            $positive +=
+                preg_match_all("/htmlspecialchars|htmlentities|strip_tags/", $src) *
+                3.0;
+            $positive += preg_match_all("/password_hash|password_verify/", $src) * 4.0;
+            $positive +=
+                preg_match_all(
+                    "/PDO::quote|mysqli_real_escape_string|prepared.*statement/i",
+                    $src,
+                ) * 5.0;
+
+            return $penalty + $positive;
+        }
+        # _file_security_metrics end
+
+        # _file_performance_hints begin
+        function _file_performance_hints(string $src): float
+        {
+            $score = 0.0;
+
+            $selectStar = preg_match_all("/SELECT\s*\*\s*FROM/i", $src);
+            $score -= $selectStar * 5.0;
+
+            $nPlusOne = preg_match_all(
+                "/N\+1\s+problem|loop.*query|query.*loop/i",
+                $src,
+            );
+            $score -= $nPlusOne * 8.0;
+
+            $syncHttp = preg_match_all('/file_get_contents\s*\(\s*["\']http/', $src);
+            $score -= $syncHttp * 3.0;
+
+            $generators = preg_match_all("/yield\b|Generator\b/", $src);
+            $score += $generators * 4.0;
+
+            $caching = preg_match_all("/\bcache\b|\bCache\b|\bcaching\b/i", $src);
+            $score += $caching * 3.0;
+
+            return $score;
+        }
+        # _file_performance_hints end
+
+        # _file_documentation begin
+        function _file_documentation(string $src): float
+        {
+            $totalMethods = preg_match_all(
+                "/(?:public|protected|private)\s+function\s+\w+\s*\(/",
+                $src,
+            );
+            $docblockMethods = preg_match_all(
+                '/\/\*\*\s*\n(?:[^*\n]|\*[^\/\n])*\*\/\s*(?:public|protected|private)\s+function/',
+                $src,
+            );
+
+            if ($totalMethods === 0) {
+                return 0.0;
+            }
+
+            $docPercentage = ($docblockMethods / $totalMethods) * 100;
+
+            if ($docPercentage >= 90) {
+                return 0.0;
+            }
+            if ($docPercentage >= 75) {
+                return -2.0;
+            }
+            if ($docPercentage >= 50) {
+                return -5.0;
+            }
+            if ($docPercentage >= 25) {
+                return -8.0;
+            }
+            return -12.0;
+        }
+        # _file_documentation end
+
+        # _file_test_coverage begin
+        function _file_test_coverage(string $src): float
+        {
+            $hasTests = preg_match_all(
+                "/\@test|\@covers|\@dataProvider|PHPUnit/",
+                $src,
+            );
+            $hasMocking = preg_match_all("/\bmock\b|Mockery|createMock/", $src);
+
+            $positive = $hasTests * 6.0 + $hasMocking * 4.0;
+
+            if ($positive === 0.0) {
+                return -10.0;
+            }
+
+            return $positive;
+        }
+        # _file_test_coverage end
+
+        # _file_coding_standards begin
+        function _file_coding_standards(string $src): float
+        {
+            $violations = 0;
+            $lines = explode("\n", $src);
+
+            foreach ($lines as $i => $line) {
+                $trimmed = rtrim($line);
+
+                if ($trimmed !== $line) {
+                    $violations++;
+                }
+
+                if (
+                    strlen($trimmed) > 120 &&
+                    !preg_match("/^\s*(?:\/\/|\/\*|#|\*|\/\*\*)/", $trimmed)
+                ) {
+                    $violations++;
+                }
+
+                if (
+                    preg_match(
+                        '/\b(?:if|else|for|foreach|while|function|class)\b[^{]*$/',
+                        $trimmed,
+                    ) &&
+                    isset($lines[$i + 1]) &&
+                    trim($lines[$i + 1]) === "{"
+                ) {
+                    $violations++;
+                }
+            }
+
+            if (count($lines) > 1000) {
+                $violations += 5;
+            }
+
+            return -($violations * 2.0);
+        }
+        # _file_coding_standards end
+
+        # _file_strict_types begin
+        function _file_strict_types(string $src): float
+        {
+            return str_contains($src, "declare(strict_types=1)") ? 9.0 : -5.0;
+        }
+        # _file_strict_types end
+
+        # _file_typed_properties begin
+        function _file_typed_properties(string $src): float
+        {
+            $totalProperties = 0;
+            $typedProperties = 0;
+            $unionTypedProperties = 0;
+
+            preg_match_all(
+                '/\b(?:public|protected|private)\s+(?:static\s+)?(?:readonly\s+)?(?:(\??[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*(?:\s*\|\s*[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)*)\s+)?(\$\w+)/',
+                $src,
+                $matches,
+                PREG_SET_ORDER,
+            );
+
+            foreach ($matches as $match) {
+                $totalProperties++;
+                if (!empty($match[1])) {
+                    $typedProperties++;
+                    if (strpos($match[1], "|") !== false) {
+                        $unionTypedProperties++;
+                    }
+                }
+            }
+
+            if ($totalProperties === 0) {
+                return 0.0;
+            }
+
+            $untypedRatio = ($totalProperties - $typedProperties) / $totalProperties;
+            $score = -($untypedRatio * 10.0);
+            $score += $unionTypedProperties * 1.0;
+
+            return $score;
+        }
+        # _file_typed_properties end
+
+        # _file_namespace begin
+        function _file_namespace(string $src): float
+        {
+            return str_contains($src, "namespace ") ? 0.0 : -3.0;
+        }
+        # _file_namespace end
+
+        # _file_no_superglobals begin
+        function _file_no_superglobals(string $src): float
+        {
+            $superglobals = preg_match_all(
+                '/\$\_(GET|POST|SESSION|COOKIE|SERVER|REQUEST|FILES)\b/',
+                $src,
+            );
+            return -($superglobals * 3.0);
+        }
+        # _file_no_superglobals end
+
+        # _file_final_class begin
+        function _file_final_class(string $src): float
+        {
+            $finalClasses = preg_match_all("/\bclass\b.*\bfinal\b/", $src);
+            $totalClasses = preg_match_all("/\bclass\s+\w+/", $src);
+
+            if ($totalClasses === 0) {
+                return 0.0;
+            }
+
+            $nonFinalRatio = ($totalClasses - $finalClasses) / $totalClasses;
+            return -($nonFinalRatio * 5.0);
+        }
+        # _file_final_class end
+
+        # _file_modern_visibility begin
+        function _file_modern_visibility(string $src): float
+        {
+            $varUsage = preg_match_all('/\bvar\s+\$/', $src);
+            $modernVisibility = preg_match_all(
+                '/\b(?:public|private|protected)\s+\$/',
+                $src,
+            );
+
+            $score = $modernVisibility * 0.1;
+            $score -= $varUsage * 5.0;
+
+            return $score;
+        }
+        # _file_modern_visibility end
+
+        # metric_calls begin
+        function metricCalls(string $src, string $name, string $body): float
+        {
+            static $callCache = [];
+
+            if (!isset($callCache[$name])) {
+                $totalCalls = 0;
+
+                $pat = "/(?<!function\s)" . preg_quote($name, "/") . "\s*\(/";
+                $totalCalls += preg_match_all($pat, $src);
+
+                $structure = [...[["", ROOT_PATH, ""]], ...callStructure()];
+                foreach ($structure as [$call, $path]) {
+                    if (
+                        str_contains($path, D . "vendor" . D) ||
+                        str_contains($path, D . "Database" . D) ||
+                        str_contains($path, D . "Logs" . D) ||
+                        str_contains($path, D . "Backup" . D) ||
+                        str_contains($path, D . "Deprecated" . D)
+                    ) {
+                        continue;
+                    }
+
+                    $phpFiles = glob($path . D . "*.php");
+                    foreach ($phpFiles as $phpFile) {
+                        $fileContent = @file_get_contents($phpFile);
+                        if ($fileContent === false) {
+                            continue;
+                        }
+
+                        $totalCalls += preg_match_all($pat, $fileContent);
+                    }
+                }
+
+                $callCache[$name] = $totalCalls;
+            }
+
+            $count = $callCache[$name];
+            return $count * 1.25 - 50.0;
+        }
+        # metric_calls end
+
+        # metric_docblock begin
+        function metricDocblock(string $name, string $body): float
+        {
+            if (!str_contains($body, "/**")) {
+                return -15.0;
+            }
+            $count = substr_count($body, "@");
+            return $count * 1.5;
+        }
+        # metric_docblock end
+
+        # metric_lines begin
+        function metricLines(string $name, string $body): float
+        {
+            if (preg_match("/\{([\s\S]*)\}/", $body, $m)) {
+                $inner = $m[1];
+                $lines = substr_count($inner, "\n");
+                if (!empty(trim($inner)) && !str_ends_with($inner, "\n")) {
+                    $lines++;
+                }
+                return $lines * -0.25;
+            }
+            return 0.0;
+        }
+        # metric_lines end
+
+        # metric_parameters begin
+        function metricParameters(string $name, string $body): float
+        {
+            $pat = "/function\s+" . preg_quote($name, "/") . "\s*\(([^)]*)\)/";
+            if (preg_match($pat, $body, $m)) {
+                $p = trim($m[1]);
+                $cnt = $p === "" ? 0 : count(array_filter(explode(",", $p)));
+                return $cnt * -0.5;
+            }
+            return 0.0;
+        }
+        # metric_parameters end
+
+        # metric_branching begin
+        function metricBranching(string $name, string $body): float
+        {
+            $dp = 0;
+            $patterns = [
+                "/\bif\s*\(/i",
+                "/\belseif\s*\(/i",
+                "/\belse\s*{?\s*(?!\s*if)/i",
+                "/\bswitch\s*\(/i",
+                "/\bcase\b/",
+                "/\bdefault\s*:/i",
+                "/\bfor\s*\(/i",
+                "/\bforeach\s*\(/i",
+                "/\bwhile\s*\(/i",
+                "/\bdo\s*{[^}]*\bwhile\b/i",
+                "/\?\s*(?!:)/",
+                '/:\s*(?![\'"]|[\s]*(int|float|string|bool|void|array|mixed|self|parent|null|\?))/i',
+                "/\|\|/",
+                "/&&/",
+                "/\bcatch\s*\(/i",
+                "/\bmatch\s*\(/i",
+                "/\bcontinue\s+[\d]+;/i",
+                "/\bbreak\s+[\d]+;/i",
+                "/\bgoto\b/i",
+            ];
+            foreach ($patterns as $p) {
+                $dp += preg_match_all($p, $body);
+            }
+            $q = preg_match_all("/\?/", $body);
+            $col = preg_match_all("/:/", $body);
+            $dp -= $q;
+            $dp += min($q, $col);
+            if (
+                preg_match("/(\bif|\bfor|\bforeach|\bwhile)\s*\([^}]{100,}\)/s", $body)
+            ) {
+                $dp += 2;
+            }
+            return $dp * -2.5;
+        }
+        # metric_branching end
+
+        # metric_division begin
+        function metricDivision(string $name, string $body): float
+        {
+            if (preg_match("/\{([\s\S]*?)\}/", $body, $m)) {
+                $body = $m[1];
+            }
+            $div = preg_match_all("/[^a-zA-Z0-9_]\s*\/\s*(?![\/*])/", $body);
+            $div += preg_match_all("/\/\=/", $body);
+            return $div * -3.0;
+        }
+        # metric_division end
+
+        # metric_string_ops begin
+        function metricStringOps(string $name, string $body): float
+        {
+            if (preg_match("/\{([\s\S]*?)\}/", $body, $m)) {
+                $body = $m[1];
+            }
+            $ops = preg_match_all("/\.\=?/", $body);
+            $funcs = [
+                "str_replace",
+                "str_ireplace",
+                "strpos",
+                "stripos",
+                "strrpos",
+                "substr",
+                "strtolower",
+                "strtoupper",
+                "trim",
+                "ltrim",
+                "rtrim",
+                "implode",
+                "explode",
+                "join",
+                "sprintf",
+                "preg_replace",
+                "preg_match",
+                "str_pad",
+                "chunk_split",
+            ];
+            foreach ($funcs as $f) {
+                $ops += preg_match_all("/\b" . $f . "\s*\(/i", $body);
+            }
+            $ops += preg_match_all('/\.\s*\$\w+\s*\.\s*\$\w+/', $body) * 2;
+            return $ops * -2.0;
+        }
+        # metric_string_ops end
+
+        # metric_builtin_usage begin
+        function metricBuiltinUsage(string $name, string $body): float
+        {
+            if (!preg_match("/\{([\s\S]*?)\}/", $body, $m)) {
+                return 0.0;
+            }
+            $inner = $m[1];
+            $praise = 0.0;
+            $all = get_defined_functions();
+            $builtin = array_map("strtolower", $all["internal"] ?? []);
+            $user = array_map("strtolower", $all["user"] ?? []);
+            preg_match_all(
+                '/\b([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)\s*\(/',
+                $inner,
+                $matches,
+            );
+            $skip = [
+                "if",
+                "else",
+                "elseif",
+                "for",
+                "foreach",
+                "while",
+                "do",
+                "switch",
+                "match",
+                "function",
+                "class",
+                "new",
+                "return",
+                "echo",
+                "print",
+            ];
+
+            foreach ($matches[1] as $func) {
+                $lower = strtolower($func);
+                if (in_array($lower, $skip)) {
+                    continue;
+                }
+                if (in_array($lower, $builtin)) {
+                    $praise += 2.0;
+                } elseif (in_array($lower, $user)) {
+                    $praise += 1.0;
+                }
+            }
+            return $praise;
+        }
+        # metric_builtin_usage end
+        # cli_rank end
+
         # cli_serve begin
         function cli_serve(bool $tooltip = false, array $argv = []): string
         {
