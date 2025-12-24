@@ -15,15 +15,7 @@ if (!defined("NODE_NAME")) {
     define("ROOT_PATH", $LOCAL_PATH);
     define("LOG_PATH", ROOT_PATH . "Log" . D);
 
-    define("SUPERGLOBALS", [
-        "argv",
-        "argc",
-        "_GET",
-        "_POST",
-        "_COOKIE",
-        "_FILES",
-        "_SERVER",
-    ]);
+    define("SUPERGLOBALS", ["argv", "argc", "_GET", "_POST", "_COOKIE", "_FILES", "_SERVER"]);
 } else {
     # Add self to root paths for file inclusion checkng.
     $ROOT_PATHS[] = $LOCAL_PATH;
@@ -1031,6 +1023,370 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return 0;
         }
         # cli_backup end
+
+        # cli_ctx begin
+        function cli_ctx(bool $tooltip = false, array $argv = []): string
+        {
+            if ($tooltip) {
+                return "<class|function> Show complete context with dependencies";
+            }
+
+            if (empty($argv)) {
+                return "E: Provide class or function name\n";
+            }
+
+            $target = $argv[0];
+            $output = "";
+
+            $excludedDirs = ["vendor", "Database", "Logs", "Backup", "Deprecated"];
+            $extensions = ["php"];
+
+            function findTarget(string $target, array $structure, array $excludedDirs): ?array
+            {
+                foreach ($structure as [$call, $path, $desc]) {
+                    foreach ($excludedDirs as $excludedDir) {
+                        if (str_contains($path, D . $excludedDir . D)) {
+                            continue 2;
+                        }
+                    }
+
+                    foreach (["php"] as $ext) {
+                        $pattern = $path . D . "*." . $ext;
+                        $files = glob($pattern);
+                        foreach ($files as $file) {
+                            $content = file_get_contents($file);
+                            if (!$content) {
+                                continue;
+                            }
+
+                            // Check for function
+                            if (!str_contains($target, "::") && !str_contains($target, "->")) {
+                                $funcContent = getFunctionBodyWithDocblock($content, $target);
+                                if ($funcContent) {
+                                    return [
+                                        "type" => "function",
+                                        "file" => $file,
+                                        "desc" => $desc,
+                                        "content" => $funcContent,
+                                        "fullContent" => $content,
+                                    ];
+                                }
+                            }
+
+                            // Check for class
+                            $className = $target;
+                            if (str_contains($target, "::")) {
+                                $className = explode("::", $target)[0];
+                            }
+
+                            if (preg_match("/\bclass\s+" . preg_quote($className, "/") . "\b/", $content)) {
+                                // Extract the whole class
+                                $pattern =
+                                    "/(\/\*\*.*?\*\/\s*)?\bclass\s+" .
+                                    preg_quote($className, "/") .
+                                    "\b[^{]*\{((?:[^{}]+|\{(?:[^{}]+|\{[^{}]*\})*\})*)\}/s";
+                                if (preg_match($pattern, $content, $matches)) {
+                                    return [
+                                        "type" => "class",
+                                        "file" => $file,
+                                        "desc" => $desc,
+                                        "content" => $matches[0],
+                                        "fullContent" => $content,
+                                        "className" => $className,
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return null;
+            }
+
+            function findExternalDependencies(string $content): array
+            {
+                $deps = [];
+                $tokens = token_get_all("<?php " . $content);
+
+                for ($i = 0; $i < count($tokens); $i++) {
+                    $token = $tokens[$i];
+
+                    if (is_array($token)) {
+                        // Check for class references in extends
+                        if ($token[0] === T_EXTENDS) {
+                            // Look for class name after extends
+                            for ($j = $i + 1; $j < count($tokens); $j++) {
+                                if (is_array($tokens[$j]) && $tokens[$j][0] === T_STRING) {
+                                    $deps[] = $tokens[$j][1] . " (class)";
+                                    break;
+                                } elseif (!is_array($tokens[$j]) && $tokens[$j] === "{") {
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Check for new statements
+                        if ($token[0] === T_NEW) {
+                            // Look for class name after new
+                            for ($j = $i + 1; $j < count($tokens); $j++) {
+                                if (is_array($tokens[$j])) {
+                                    if ($tokens[$j][0] === T_WHITESPACE) {
+                                        continue;
+                                    }
+                                    if ($tokens[$j][0] === T_STRING) {
+                                        $deps[] = $tokens[$j][1] . " (class)";
+                                        break;
+                                    }
+                                } elseif ($tokens[$j] === "(") {
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Check for function calls
+                        if ($token[0] === T_STRING) {
+                            $tokenValue = $token[1];
+
+                            // Skip PHP keywords
+                            $skip = [
+                                "echo",
+                                "print",
+                                "if",
+                                "else",
+                                "elseif",
+                                "for",
+                                "foreach",
+                                "while",
+                                "do",
+                                "switch",
+                                "case",
+                                "default",
+                                "break",
+                                "continue",
+                                "return",
+                                "function",
+                                "class",
+                                "interface",
+                                "trait",
+                                "namespace",
+                                "use",
+                                "extends",
+                                "implements",
+                                "new",
+                                "instanceof",
+                                "clone",
+                                "true",
+                                "false",
+                                "null",
+                                "self",
+                                "parent",
+                                "static",
+                                "array",
+                                "string",
+                                "int",
+                                "float",
+                                "bool",
+                                "void",
+                                "mixed",
+                                "iterable",
+                                "callable",
+                                "object",
+                                "public",
+                                "private",
+                                "protected",
+                                "static",
+                                "abstract",
+                                "final",
+                                "const",
+                                "isset",
+                                "empty",
+                                "eval",
+                                "exit",
+                                "die",
+                                "list",
+                                "unset",
+                                "include",
+                                "include_once",
+                                "require",
+                                "require_once",
+                            ];
+
+                            if (!in_array(strtolower($tokenValue), $skip)) {
+                                // Check if it's a function call (next non-whitespace token is '(')
+                                for ($j = $i + 1; $j < count($tokens); $j++) {
+                                    if (is_array($tokens[$j])) {
+                                        if ($tokens[$j][0] === T_WHITESPACE) {
+                                            continue;
+                                        }
+                                        if ($tokens[$j][0] === T_COMMENT || $tokens[$j][0] === T_DOC_COMMENT) {
+                                            continue;
+                                        }
+                                    }
+                                    if ($tokens[$j] === "(") {
+                                        if (preg_match('/^[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*$/', $tokenValue)) {
+                                            $deps[] = $tokenValue . " (function)";
+                                        }
+                                        break;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return array_unique($deps);
+            }
+
+            function findClassContent(string $className, array $structure, array $excludedDirs): ?array
+            {
+                foreach ($structure as [$call, $path, $desc]) {
+                    foreach ($excludedDirs as $excludedDir) {
+                        if (str_contains($path, D . $excludedDir . D)) {
+                            continue 2;
+                        }
+                    }
+
+                    $pattern = $path . D . "*.php";
+                    $files = glob($pattern);
+                    foreach ($files as $file) {
+                        $content = file_get_contents($file);
+
+                        if (preg_match("/\bclass\s+" . preg_quote($className, "/") . "\b/", $content)) {
+                            // Extract the whole class
+                            $pattern =
+                                "/(\/\*\*.*?\*\/\s*)?\bclass\s+" .
+                                preg_quote($className, "/") .
+                                "\b[^{]*\{((?:[^{}]+|\{(?:[^{}]+|\{[^{}]*\})*\})*)\}/s";
+                            if (preg_match($pattern, $content, $matches)) {
+                                return [
+                                    "file" => $file,
+                                    "desc" => $desc,
+                                    "content" => $matches[0],
+                                ];
+                            }
+                        }
+                    }
+                }
+
+                return null;
+            }
+
+            function findFunctionContent(string $functionName, array $structure, array $excludedDirs): ?array
+            {
+                foreach ($structure as [$call, $path, $desc]) {
+                    foreach ($excludedDirs as $excludedDir) {
+                        if (str_contains($path, D . $excludedDir . D)) {
+                            continue 2;
+                        }
+                    }
+
+                    $pattern = $path . D . "*.php";
+                    $files = glob($pattern);
+                    foreach ($files as $file) {
+                        $content = file_get_contents($file);
+                        $funcContent = getFunctionBodyWithDocblock($content, $functionName);
+                        if ($funcContent) {
+                            return [
+                                "file" => $file,
+                                "desc" => $desc,
+                                "content" => $funcContent,
+                            ];
+                        }
+                    }
+                }
+
+                return null;
+            }
+
+            $structure = [...[["", ROOT_PATH, ""]], ...callStructure()];
+            $targetData = findTarget($target, $structure, $excludedDirs);
+
+            if (!$targetData) {
+                return "E: {$target} not found\n";
+            }
+
+            $relativePath = str_replace(ROOT_PATH, "", $targetData["file"]);
+
+            // Output main target
+            $output .= "# " . $relativePath . "\n";
+            if ($targetData["desc"]) {
+                $output .= "# " . $targetData["desc"] . "\n";
+            }
+            $output .= "\n";
+            $output .= $targetData["content"] . "\n\n";
+
+            // Find ALL dependencies
+            $deps = findExternalDependencies($targetData["content"]);
+            $relatedCode = [];
+
+            foreach ($deps as $dep) {
+                $originalDep = $dep;
+
+                // Clean type suffix
+                if (str_contains($dep, " (class)")) {
+                    $dep = str_replace(" (class)", "", $dep);
+                    $depType = "class";
+                } elseif (str_contains($dep, " (function)")) {
+                    $dep = str_replace(" (function)", "", $dep);
+                    $depType = "function";
+                } else {
+                    $depType = "unknown";
+                }
+
+                if (!in_array($dep, ["cli_ctx", "cli_rank", "cli_search", "cli_help", "cli_wrap", "TestCase"])) {
+                    // Find class
+                    if ($depType === "class") {
+                        $classData = findClassContent($dep, $structure, $excludedDirs);
+                        if ($classData && $classData["file"] !== $targetData["file"]) {
+                            $relatedCode[$originalDep] = [
+                                "file" => str_replace(ROOT_PATH, "", $classData["file"]),
+                                "desc" => $classData["desc"],
+                                "content" => $classData["content"],
+                                "type" => "class",
+                            ];
+                        }
+                    }
+                    // Find function
+                    elseif ($depType === "function") {
+                        $funcData = findFunctionContent($dep, $structure, $excludedDirs);
+                        if ($funcData && $funcData["file"] !== $targetData["file"]) {
+                            $relatedCode[$originalDep] = [
+                                "file" => str_replace(ROOT_PATH, "", $funcData["file"]),
+                                "desc" => $funcData["desc"],
+                                "content" => $funcData["content"],
+                                "type" => "function",
+                            ];
+                        }
+                    }
+                }
+            }
+
+            // Output related code
+            if (!empty($relatedCode)) {
+                $output .= "# related code for context below:\n\n";
+                foreach ($relatedCode as $depName => $depData) {
+                    $output .= "# " . $depData["file"] . "\n";
+                    if ($depData["desc"]) {
+                        $output .= "# " . $depData["desc"] . "\n";
+                    }
+                    $output .= "\n" . $depData["content"] . "\n\n";
+                }
+            }
+
+            // Add ranking - rank the FILE, not the class as function
+            $rankOutput = cli_rank(false, [$targetData["file"]]);
+            $resourcesOutput = ""; //cli_list(false, []);
+
+            $rankLines = explode("\n", "{$rankOutput}\n{$resourcesOutput}");
+            $output .= "# ranking analysis of: {$targetData["file"]} \n#\n";
+            foreach ($rankLines as $line) {
+                $output .= "# {$line}\n";
+            }
+
+            return $output;
+        }
+        # cli_ctx end
 
         # cli_deprecate begin
         function cli_deprecate(bool $tooltip = false, array $argv = []): string
@@ -2667,24 +3023,15 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $output .= "Function Metrics:\n";
 
                 $metricNotes = [
-                    "call" =>
-                        "More calls = higher score. Functions used throughout codebase are valuable.",
-                    "docs" =>
-                        "Add docblock with @param, @return tags. More tags = higher score.",
-                    "ln" =>
-                        "Shorter functions (<20 lines) are easier to understand and test.",
-                    "args" =>
-                        "Reduce parameters (<4 ideal). Use objects/arrays for related parameters.",
-                    "branch" =>
-                        "Reduce complex branching (if/else/switch). Extract conditions to methods.",
-                    "divisions" =>
-                        "Avoid division operations which can cause precision issues.",
-                    "string_ops" =>
-                        "Minimize string concatenation. Use string builders or templates.",
-                    "builtin" =>
-                        "Use built-in PHP functions over custom implementations when possible.",
-                    "ifelse" =>
-                        "Balance if statements with else/elseif. Unhandled edge-cases can cause bugs.",
+                    "call" => "More calls = higher score. Functions used throughout codebase are valuable.",
+                    "docs" => "Add docblock with @param, @return tags. More tags = higher score.",
+                    "ln" => "Shorter functions (<20 lines) are easier to understand and test.",
+                    "args" => "Reduce parameters (<4 ideal). Use objects/arrays for related parameters.",
+                    "branch" => "Reduce complex branching (if/else/switch). Extract conditions to methods.",
+                    "divisions" => "Avoid division operations which can cause precision issues.",
+                    "string_ops" => "Minimize string concatenation. Use string builders or templates.",
+                    "builtin" => "Use built-in PHP functions over custom implementations when possible.",
+                    "ifelse" => "Balance if statements with else/elseif. Unhandled edge-cases can cause bugs.",
                 ];
 
                 $hasNegativeMetrics = false;
@@ -2703,67 +3050,37 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 }
 
                 $fileMetricNotes = [
-                    "strict_types" =>
-                        "Add 'declare(strict_types=1);' at top of file for type safety.",
-                    "typed_properties" =>
-                        "Use type hints for class properties (PHP 7.4+).",
-                    "namespace" =>
-                        "Add namespace declaration to avoid global scope pollution.",
-                    "no_superglobals" =>
-                        "Avoid direct \$_GET/\$_POST usage. Use input validation/sanitization.",
-                    "final_class" =>
-                        "Mark classes as 'final' when not designed for inheritance.",
-                    "modern_visibility" =>
-                        "Use 'public/private/protected' instead of old 'var' keyword.",
-                    "constructor_property_promotion" =>
-                        "Use PHP 8 constructor property promotion for cleaner code.",
-                    "union_types" =>
-                        "Use union types (TypeA|TypeB) for flexible parameter/return types.",
-                    "nullsafe_operator" =>
-                        "Use ?-> operator instead of null checks for method/property access.",
-                    "match_expression" =>
-                        "Prefer 'match()' over 'switch()' for expression-based control flow.",
-                    "named_arguments" =>
-                        "Use named arguments for clarity when calling functions with many parameters.",
-                    "attributes" =>
-                        "Use PHP 8 attributes for metadata instead of docblock annotations.",
+                    "strict_types" => "Add 'declare(strict_types=1);' at top of file for type safety.",
+                    "typed_properties" => "Use type hints for class properties (PHP 7.4+).",
+                    "namespace" => "Add namespace declaration to avoid global scope pollution.",
+                    "no_superglobals" => "Avoid direct \$_GET/\$_POST usage. Use input validation/sanitization.",
+                    "final_class" => "Mark classes as 'final' when not designed for inheritance.",
+                    "modern_visibility" => "Use 'public/private/protected' instead of old 'var' keyword.",
+                    "constructor_property_promotion" => "Use PHP 8 constructor property promotion for cleaner code.",
+                    "union_types" => "Use union types (TypeA|TypeB) for flexible parameter/return types.",
+                    "nullsafe_operator" => "Use ?-> operator instead of null checks for method/property access.",
+                    "match_expression" => "Prefer 'match()' over 'switch()' for expression-based control flow.",
+                    "named_arguments" => "Use named arguments for clarity when calling functions with many parameters.",
+                    "attributes" => "Use PHP 8 attributes for metadata instead of docblock annotations.",
                     "enums" => "Use enums for type-safe constant sets (PHP 8.1+).",
-                    "readonly_properties" =>
-                        "Mark properties as 'readonly' when they shouldn't change after construction.",
-                    "never_return_type" =>
-                        "Use ': never' return type for functions that always exit/throw.",
-                    "array_is_list" =>
-                        "Use array_is_list() instead of manual array key checking.",
-                    "first_class_callable" =>
-                        "Use first-class callables (fn(...)) for cleaner callback syntax.",
-                    "pure_annotations" =>
-                        "Add @pure or #[Pure] annotations for functions without side effects.",
-                    "immutable_objects" =>
-                        "Design immutable objects with private properties and no setters.",
-                    "cohesion" =>
-                        "Improve class cohesion - methods should share data/behavior.",
-                    "cyclomatic_complexity" =>
-                        "Reduce branching logic. Extract complex conditions into methods.",
-                    "dependency_inversion" =>
-                        "Depend on abstractions (interfaces) not concrete implementations.",
-                    "no_magic_numbers" =>
-                        "Replace magic numbers with named constants or configuration.",
-                    "no_global_functions" =>
-                        "Wrap global functions in class methods for better testability/encapsulation.",
-                    "interface_segregation" =>
-                        "Split large interfaces into smaller, focused ones.",
-                    "single_responsibility" =>
-                        "Split large classes (>200 lines) into smaller, focused classes.",
-                    "security_metrics" =>
-                        "Use prepared statements, input validation, and output escaping.",
-                    "performance_hints" =>
-                        "Avoid N+1 queries, use generators for large datasets, cache results.",
-                    "documentation" =>
-                        "Add docblocks to public/protected methods describing purpose and parameters.",
-                    "test_coverage" =>
-                        "Add unit tests and use mocking for better test coverage.",
-                    "coding_standards" =>
-                        "Follow PSR standards: line length < 120, no trailing whitespace, brace style.",
+                    "readonly_properties" => "Mark properties as 'readonly' when they shouldn't change after construction.",
+                    "never_return_type" => "Use ': never' return type for functions that always exit/throw.",
+                    "array_is_list" => "Use array_is_list() instead of manual array key checking.",
+                    "first_class_callable" => "Use first-class callables (fn(...)) for cleaner callback syntax.",
+                    "pure_annotations" => "Add @pure or #[Pure] annotations for functions without side effects.",
+                    "immutable_objects" => "Design immutable objects with private properties and no setters.",
+                    "cohesion" => "Improve class cohesion - methods should share data/behavior.",
+                    "cyclomatic_complexity" => "Reduce branching logic. Extract complex conditions into methods.",
+                    "dependency_inversion" => "Depend on abstractions (interfaces) not concrete implementations.",
+                    "no_magic_numbers" => "Replace magic numbers with named constants or configuration.",
+                    "no_global_functions" => "Wrap global functions in class methods for better testability/encapsulation.",
+                    "interface_segregation" => "Split large interfaces into smaller, focused ones.",
+                    "single_responsibility" => "Split large classes (>200 lines) into smaller, focused classes.",
+                    "security_metrics" => "Use prepared statements, input validation, and output escaping.",
+                    "performance_hints" => "Avoid N+1 queries, use generators for large datasets, cache results.",
+                    "documentation" => "Add docblocks to public/protected methods describing purpose and parameters.",
+                    "test_coverage" => "Add unit tests and use mocking for better test coverage.",
+                    "coding_standards" => "Readable code: line length < 120, no trailing whitespace, brace style.",
                 ];
 
                 $output .= "\nFile Metrics:\n";
@@ -2785,10 +3102,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return $output;
             }
 
-            usort(
-                $fns,
-                fn($a, $b) => $analysis[$a]["score"] <=> $analysis[$b]["score"],
-            );
+            usort($fns, fn($a, $b) => $analysis[$a]["score"] <=> $analysis[$b]["score"]);
 
             $output = "File Score: " . number_format($fileTotal, 1) . "\n";
 
@@ -2800,11 +3114,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $output .= "\nTop Functions:\n";
                 foreach ($best as $fn) {
                     $score = $analysis[$fn]["score"];
-                    $output .=
-                        "* {$fn}(); " .
-                        str_repeat(" ", $maxLen - strlen($fn)) .
-                        number_format($score, 1) .
-                        "\n";
+                    $output .= "* {$fn}(); " . str_repeat(" ", $maxLen - strlen($fn)) . number_format($score, 1) . "\n";
                 }
             }
 
@@ -2812,11 +3122,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $output .= "\nNeeds Improvement:\n";
                 foreach ($worst as $fn) {
                     $score = $analysis[$fn]["score"];
-                    $output .=
-                        "* {$fn}(); " .
-                        str_repeat(" ", $maxLen - strlen($fn)) .
-                        number_format($score, 1) .
-                        " // ";
+                    $output .= "* {$fn}(); " . str_repeat(" ", $maxLen - strlen($fn)) . number_format($score, 1) . " // ";
                     foreach ($analysis[$fn]["metrics"] as $metric => $value) {
                         if ($value != 0) {
                             $output .= "{$metric}: " . number_format($value, 1) . "; ";
@@ -2867,18 +3173,12 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                 if ($col1) {
                     $line .= "{$col1[0]} {$col1[1]}";
-                    $line .= str_repeat(
-                        " ",
-                        $maxlenMetric - strlen("{$col1[0]} {$col1[1]}") + 2,
-                    );
+                    $line .= str_repeat(" ", $maxlenMetric - strlen("{$col1[0]} {$col1[1]}") + 2);
                 }
 
                 if ($col2) {
                     $line .= "{$col2[0]} {$col2[1]}";
-                    $line .= str_repeat(
-                        " ",
-                        $maxlenMetric - strlen("{$col2[0]} {$col2[1]}") + 2,
-                    );
+                    $line .= str_repeat(" ", $maxlenMetric - strlen("{$col2[0]} {$col2[1]}") + 2);
                 }
 
                 if ($col3) {
@@ -2892,6 +3192,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             return $output;
         }
+
+        /**
+         * @var string $LOCAL_PATH inherited from node.php
+         */
 
         # _file_functions begin
         function _file_functions(string $src): array
@@ -3496,13 +3800,16 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_documentation begin
         function _file_documentation(string $src): float
         {
-            $totalMethods = preg_match_all(
-                "/(?:public|protected|private)\s+function\s+\w+\s*\(/",
-                $src,
-            );
+            // Match any function, with or without visibility keywords
+            // Handles: public function, static function, or just function
+            $totalMethods = preg_match_all("/(?:(?:public|protected|private|static)\s+)*function\s+\w+\s*\(/i", $src, $matches);
+
+            // Match docblocks followed by those same function signatures
+            // The 's' modifier allows '.' to match newlines, making it safer
             $docblockMethods = preg_match_all(
-                '/\/\*\*\s*\n(?:[^*\n]|\*[^\/\n])*\*\/\s*(?:public|protected|private)\s+function/',
+                "/\/\*\*.*?\*\/\s*(?:(?:public|protected|private|static)\s+)*function\s+\w+/s",
                 $src,
+                $matches,
             );
 
             if ($totalMethods === 0) {
@@ -3511,19 +3818,14 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             $docPercentage = ($docblockMethods / $totalMethods) * 100;
 
-            if ($docPercentage >= 90) {
-                return 0.0;
-            }
-            if ($docPercentage >= 75) {
-                return -2.0;
-            }
-            if ($docPercentage >= 50) {
-                return -5.0;
-            }
-            if ($docPercentage >= 25) {
-                return -8.0;
-            }
-            return -12.0;
+            // Use a match expression (PHP 8.0+) for cleaner scoring
+            return match (true) {
+                $docPercentage >= 90 => 0.0,
+                $docPercentage >= 75 => -2.0,
+                $docPercentage >= 50 => -5.0,
+                $docPercentage >= 25 => -8.0,
+                default => -12.0,
+            };
         }
         # _file_documentation end
 
@@ -3552,37 +3854,63 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $violations = 0;
             $lines = explode("\n", $src);
 
+            // 1. Check for the "Disgusting" Header Gap
+            // Since you want declare on line 1, we penalize empty line 2 if it's just a gap
+            if (isset($lines[1]) && trim($lines[1]) === "" && str_contains($lines[0], "declare")) {
+                $violations++;
+            }
+
             foreach ($lines as $i => $line) {
                 $trimmed = rtrim($line);
 
+                // 2. Trailing Whitespace (Zed's 'trim_trailing_whitespace' default)
                 if ($trimmed !== $line) {
                     $violations++;
                 }
 
-                if (
-                    strlen($trimmed) > 120 &&
-                    !preg_match("/^\s*(?:\/\/|\/\*|#|\*|\/\*\*)/", $trimmed)
-                ) {
-                    $violations++;
+                // 3. Line Length (Matching your 'preferred_line_length': 120)
+                // We exclude long URLs or strings to avoid unfair penalties
+                if (strlen($trimmed) > 120) {
+                    $isComment = preg_match("/^\s*(?:\/\/|\/\*|#|\*)/", $trimmed);
+                    $isLongString = preg_match("/['\"].{80,}['\"]/", $trimmed);
+
+                    if (!$isComment && !$isLongString) {
+                        $violations++;
+                    }
                 }
 
-                if (
-                    preg_match(
-                        '/\b(?:if|else|for|foreach|while|function|class)\b[^{]*$/',
-                        $trimmed,
-                    ) &&
-                    isset($lines[$i + 1]) &&
-                    trim($lines[$i + 1]) === "{"
-                ) {
+                // 4. Enforce K&R Braces (The "Same Line" Rule)
+                // This looks for a declaration that DOES NOT end with {
+                // then checks if the next line starts with {
+                $isStatement = preg_match("/\b(if|else|for|foreach|while|function|class|try|catch)\b/", $trimmed);
+                $hasBraceOnSameLine = str_ends_with($trimmed, "{");
+
+                if ($isStatement && !$hasBraceOnSameLine) {
+                    // Check if the next non-empty line is just a brace
+                    $nextIdx = $i + 1;
+                    while (isset($lines[$nextIdx]) && trim($lines[$nextIdx]) === "") {
+                        $nextIdx++;
+                    }
+
+                    if (isset($lines[$nextIdx]) && trim($lines[$nextIdx]) === "{") {
+                        // This is an "Allman" style brace, which violates your K&R preference
+                        $violations++;
+                    }
+                }
+
+                // 5. Check for Tab vs Space (Zed defaults to 4 spaces)
+                if (str_starts_with($line, "\t")) {
                     $violations++;
                 }
             }
 
+            // 6. File Length Penalty
             if (count($lines) > 1000) {
                 $violations += 5;
             }
 
-            return -($violations * 2.0);
+            // Return a weighted score
+            return -($violations * 1.5);
         }
         # _file_coding_standards end
 
@@ -3650,7 +3978,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_final_class begin
         function _file_final_class(string $src): float
         {
-            $finalClasses = preg_match_all("/\bclass\b.*\bfinal\b/", $src);
+            $finalClasses = preg_match_all("/\bfinal\b\s+\bclass\b/i", $src);
             $totalClasses = preg_match_all("/\bclass\s+\w+/", $src);
 
             if ($totalClasses === 0) {
@@ -3682,6 +4010,11 @@ if ($LOCAL_PATH === ROOT_PATH) {
         function metricCalls(string $src, string $name, string $body): float
         {
             static $callCache = [];
+
+            # All tests should be granted no penalty for existing.
+            if (str_starts_with($name, "test")) {
+                return 0.0;
+            }
 
             if (!isset($callCache[$name])) {
                 $totalCalls = 0;
@@ -3740,7 +4073,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 if (!empty(trim($inner)) && !str_ends_with($inner, "\n")) {
                     $lines++;
                 }
-                return $lines * -0.25;
+                return 20 + $lines * -0.25;
             }
             return 0.0;
         }
@@ -3921,6 +4254,76 @@ if ($LOCAL_PATH === ROOT_PATH) {
         }
         # metric_if_else_balance end
         # cli_rank end
+
+        # cli_search begin
+        function cli_search(bool $tooltip = false, array $argv = []): string
+        {
+            if ($tooltip) {
+                return "<query...> Search across all code files";
+            }
+
+            if (empty($argv)) {
+                return "E: Provide search query\n";
+            }
+
+            $searchQuery = implode(" ", $argv);
+            $output = "";
+
+            $extensions = ["php", "js", "css", "html", "scss", "json", "xml", "yml", "yaml", "md", "txt"];
+            $excludedDirs = ["vendor", "Database", "Logs", "Backup", "Deprecated"];
+
+            $structure = [...[["", ROOT_PATH, ""]], ...callStructure()];
+            foreach ($structure as [$call, $path]) {
+                foreach ($excludedDirs as $excludedDir) {
+                    if (str_contains($path, D . $excludedDir . D)) {
+                        continue 2;
+                    }
+                }
+
+                foreach ($extensions as $ext) {
+                    $pattern = $path . D . "*." . $ext;
+                    $files = glob($pattern);
+                    foreach ($files as $fileN => $file) {
+                        $lines = @file($file, FILE_IGNORE_NEW_LINES);
+                        if ($lines === false) {
+                            continue;
+                        }
+
+                        $hasMatch = false;
+
+                        foreach ($lines as $lineNum => $line) {
+                            if (stripos($line, $searchQuery) !== false) {
+                                if (!$hasMatch) {
+                                    $output .= $file . ":" . ($lineNum + 1) . "\n";
+                                    $hasMatch = true;
+                                }
+
+                                if (strlen($line) > 114) {
+                                    $pos = stripos($line, $searchQuery);
+                                    $start = max(0, $pos - 50);
+                                    $snippet = substr($line, $start, 100);
+                                    $snippet = ".. {$snippet} ..";
+                                    $output .= "{$snippet}" . "\n";
+                                } else {
+                                    $output .= ">  {$line}\n";
+                                }
+                            }
+                        }
+
+                        if ($hasMatch) {
+                            $output .= "\n";
+                        }
+                    }
+                }
+            }
+
+            if (empty($output)) {
+                return "No matches found for: {$searchQuery}\n";
+            }
+
+            return $output;
+        }
+        # cli_search end
 
         # cli_serve begin
         function cli_serve(bool $tooltip = false, array $argv = []): string
@@ -4515,13 +4918,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         unset($TIME_START, $LOCAL_PATH, $u, $m, $title);
 
         echo ", Global variables: [" .
-            implode(
-                ",",
-                array_diff(array_keys(get_defined_vars()), [
-                    ...["r"],
-                    ...SUPERGLOBALS,
-                ]),
-            ) .
+            implode(",", array_diff(array_keys(get_defined_vars()), [...["r"], ...SUPERGLOBALS])) .
             "]\n\n";
 
         unset($ROOT_PATHS);
