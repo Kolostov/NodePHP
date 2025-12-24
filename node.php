@@ -254,17 +254,17 @@ try {
             if (str_contains($key, "=")) {
                 [$key, $val] = explode("=", $key, 2);
                 $key = NODE_NAME . ":" . strtoupper(trim($key));
-                $val = trim($val);
                 $val = $val === null && $default !== null ? $default : $val;
+                $val = trim((string) $val);
 
-                $_ENV[$key] = trim($val);
+                $_ENV[$key] = $val;
                 putenv("{$key}={$val}");
 
                 return $val;
             }
 
             $key = NODE_NAME . ":" . strtoupper(trim($key));
-            $val = trim($_ENV[$key] ?? getenv($key));
+            $val = trim((string) ($_ENV[$key] ?? getenv($key)));
 
             if ($val !== null && $val !== false) {
                 if (strtolower($val) === "true") {
