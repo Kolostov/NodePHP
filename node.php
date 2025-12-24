@@ -4909,7 +4909,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         $title = NODE_NAME . " // PHP " . PHP_VERSION;
         printf("{$title}, Time: %.4fs, RAM: %.2fMB", $u, $m);
 
-        unset($TIME_START, $LOCAL_PATH, $u, $m, $title);
+        unset($TIME_START, $u, $m, $title);
 
         echo ", Global variables: [" .
             implode(",", array_diff(array_keys(get_defined_vars()), [...["r"], ...SUPERGLOBALS])) .
