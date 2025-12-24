@@ -29,16 +29,16 @@ if (!defined("NODE_NAME")) {
  */
 
 # node_structure begin
+/**
+ * @var string $LOCAL_PATH curret node local path from node.php
+ * @var array $RUN_STRING array of calls to run in sequence from node.php
+ */
+
 $NODE_STRUCTURE_DEFINITIONS = "{$LOCAL_PATH}node.json";
 
 try {
     $node = file_exists($NODE_STRUCTURE_DEFINITIONS)
-        ? json_decode(
-            file_get_contents($NODE_STRUCTURE_DEFINITIONS),
-            !0,
-            512,
-            JSON_THROW_ON_ERROR,
-        )
+        ? json_decode(file_get_contents($NODE_STRUCTURE_DEFINITIONS), !0, 512, JSON_THROW_ON_ERROR)
         : null;
 
     $NODE_STRUCTURE = $node["structure"] ?? [
@@ -227,10 +227,7 @@ try {
     }
 
     if (file_exists("{$LOCAL_PATH}.env")) {
-        $lines = file(
-            "{$LOCAL_PATH}.env",
-            FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES,
-        );
+        $lines = file("{$LOCAL_PATH}.env", FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         foreach ($lines as $line) {
             if (str_starts_with($line, "#") || !str_contains($line, "=")) {
                 continue;
@@ -248,30 +245,41 @@ try {
         unset($lines);
     }
 
+    # Loaded ENV for future comparison.
+    $_INITIAL_ENV = $_ENV ?? [];
+
     if (function_exists("env") === !1) {
         function env(string $key, mixed $default = null): mixed
         {
-            $key = strtoupper(trim($key));
+            if (str_contains($key, "=")) {
+                [$key, $val] = explode("=", $key, 2);
+                $key = NODE_NAME . ":" . strtoupper(trim($key));
+                $val = trim($val);
+                $val = $val === null && $default !== null ? $default : $val;
 
-            $prefixedKey = NODE_NAME . ":{$key}";
-            $value = $_ENV[$prefixedKey] ?? getenv($prefixedKey);
+                $_ENV[$key] = trim($val);
+                putenv("{$key}={$val}");
 
-            if ($value !== null && $value !== false) {
-                if (strtolower($value) === "true") {
+                return $val;
+            }
+
+            $key = NODE_NAME . ":" . strtoupper(trim($key));
+            $val = trim($_ENV[$key] ?? getenv($key));
+
+            if ($val !== null && $val !== false) {
+                if (strtolower($val) === "true") {
                     return true;
                 }
-                if (strtolower($value) === "false") {
+                if (strtolower($val) === "false") {
                     return false;
                 }
-                if (strtolower($value) === "null") {
+                if (strtolower($val) === "null") {
                     return null;
                 }
-                if (is_numeric($value)) {
-                    return strpos($value, ".") !== false
-                        ? (float) $value
-                        : (int) $value;
+                if (is_numeric($val)) {
+                    return strpos($val, ".") !== false ? (float) $val : (int) $val;
                 }
-                return $value;
+                return $val;
             }
 
             return $default;
@@ -4908,6 +4916,16 @@ if ($LOCAL_PATH === ROOT_PATH) {
             "]\n\n";
 
         unset($ROOT_PATHS);
-        die("{$r}\n");
+        echo "{$r}\n";
     }
+
+    /**
+     * @var array $_INITIAL_ENV from node.node_structure.php as copy of loaded env.
+     */
+
+    serialize($_INITIAL_ENV) != serialize($_ENV) &&
+        file_put_contents(
+            "{$LOCAL_PATH}.env",
+            implode("\n", array_map(fn($x) => "{$x}={$_ENV[$x]}", array_keys($_ENV))),
+        );
 }
