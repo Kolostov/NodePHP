@@ -234,7 +234,10 @@ try {
             }
 
             [$key, $value] = explode("=", $line, 2);
-            $key = "{$NODE_NAME}:" . strtoupper(trim($key));
+            $key = strpos($key, ":")
+                ? $key # Consider already formatted.
+                : "{$NODE_NAME}:" . strtoupper(trim($key));
+
             $value = trim(trim($value), "'\"");
 
             $_ENV[$key] = $value;
@@ -253,7 +256,9 @@ try {
         {
             if (str_contains($key, "=")) {
                 [$key, $val] = explode("=", $key, 2);
-                $key = NODE_NAME . ":" . strtoupper(trim($key));
+                $key = strpos($key, ":")
+                    ? $key # Consider already formatted.
+                    : NODE_NAME . ":" . strtoupper(trim($key));
                 $val = $val === null && $default !== null ? $default : $val;
                 $val = trim((string) $val);
 
@@ -263,7 +268,9 @@ try {
                 return $val;
             }
 
-            $key = NODE_NAME . ":" . strtoupper(trim($key));
+            $key = strpos($key, ":")
+                ? $key # Consider already formatted.
+                : NODE_NAME . ":" . strtoupper(trim($key));
             $val = trim((string) ($_ENV[$key] ?? getenv($key)));
 
             if ($val !== null && $val !== false) {
