@@ -2646,6 +2646,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $rawScore += $value;
                 $functionMetrics["builtin"] = $value = metricBuiltinUsage($fn, $body);
                 $rawScore += $value;
+                $functionMetrics["ifelse"] = $value = metricIfElseBalance($fn, $body);
+                $rawScore += $value;
 
                 $analysis[$fn] = [
                     "metrics" => $functionMetrics,
@@ -2662,11 +2664,122 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $output .= "Raw Score: " . number_format($data["raw"], 1) . "\n";
                 $output .= "File Score: " . number_format($fileTotal, 1) . "\n\n";
 
-                $output .= "Metrics:\n";
+                $output .= "Function Metrics:\n";
+
+                $metricNotes = [
+                    "call" =>
+                        "More calls = higher score. Functions used throughout codebase are valuable.",
+                    "docs" =>
+                        "Add docblock with @param, @return tags. More tags = higher score.",
+                    "ln" =>
+                        "Shorter functions (<20 lines) are easier to understand and test.",
+                    "args" =>
+                        "Reduce parameters (<4 ideal). Use objects/arrays for related parameters.",
+                    "branch" =>
+                        "Reduce complex branching (if/else/switch). Extract conditions to methods.",
+                    "divisions" =>
+                        "Avoid division operations which can cause precision issues.",
+                    "string_ops" =>
+                        "Minimize string concatenation. Use string builders or templates.",
+                    "builtin" =>
+                        "Use built-in PHP functions over custom implementations when possible.",
+                    "ifelse" =>
+                        "Balance if statements with else/elseif. Unhandled edge-cases can cause bugs.",
+                ];
+
+                $hasNegativeMetrics = false;
                 foreach ($data["metrics"] as $metric => $value) {
-                    if ($value != 0) {
-                        $output .= "* {$metric}: " . number_format($value, 1) . "\n";
+                    if ($value < 0) {
+                        $hasNegativeMetrics = true;
+                        $output .= "* {$metric}: " . number_format($value, 1) . ";";
+                        if (isset($metricNotes[$metric])) {
+                            $output .= " // " . $metricNotes[$metric] . "\n";
+                        }
                     }
+                }
+
+                if (!$hasNegativeMetrics) {
+                    $output .= "No negative function metrics found. Good job!\n";
+                }
+
+                $fileMetricNotes = [
+                    "strict_types" =>
+                        "Add 'declare(strict_types=1);' at top of file for type safety.",
+                    "typed_properties" =>
+                        "Use type hints for class properties (PHP 7.4+).",
+                    "namespace" =>
+                        "Add namespace declaration to avoid global scope pollution.",
+                    "no_superglobals" =>
+                        "Avoid direct \$_GET/\$_POST usage. Use input validation/sanitization.",
+                    "final_class" =>
+                        "Mark classes as 'final' when not designed for inheritance.",
+                    "modern_visibility" =>
+                        "Use 'public/private/protected' instead of old 'var' keyword.",
+                    "constructor_property_promotion" =>
+                        "Use PHP 8 constructor property promotion for cleaner code.",
+                    "union_types" =>
+                        "Use union types (TypeA|TypeB) for flexible parameter/return types.",
+                    "nullsafe_operator" =>
+                        "Use ?-> operator instead of null checks for method/property access.",
+                    "match_expression" =>
+                        "Prefer 'match()' over 'switch()' for expression-based control flow.",
+                    "named_arguments" =>
+                        "Use named arguments for clarity when calling functions with many parameters.",
+                    "attributes" =>
+                        "Use PHP 8 attributes for metadata instead of docblock annotations.",
+                    "enums" => "Use enums for type-safe constant sets (PHP 8.1+).",
+                    "readonly_properties" =>
+                        "Mark properties as 'readonly' when they shouldn't change after construction.",
+                    "never_return_type" =>
+                        "Use ': never' return type for functions that always exit/throw.",
+                    "array_is_list" =>
+                        "Use array_is_list() instead of manual array key checking.",
+                    "first_class_callable" =>
+                        "Use first-class callables (fn(...)) for cleaner callback syntax.",
+                    "pure_annotations" =>
+                        "Add @pure or #[Pure] annotations for functions without side effects.",
+                    "immutable_objects" =>
+                        "Design immutable objects with private properties and no setters.",
+                    "cohesion" =>
+                        "Improve class cohesion - methods should share data/behavior.",
+                    "cyclomatic_complexity" =>
+                        "Reduce branching logic. Extract complex conditions into methods.",
+                    "dependency_inversion" =>
+                        "Depend on abstractions (interfaces) not concrete implementations.",
+                    "no_magic_numbers" =>
+                        "Replace magic numbers with named constants or configuration.",
+                    "no_global_functions" =>
+                        "Wrap global functions in class methods for better testability/encapsulation.",
+                    "interface_segregation" =>
+                        "Split large interfaces into smaller, focused ones.",
+                    "single_responsibility" =>
+                        "Split large classes (>200 lines) into smaller, focused classes.",
+                    "security_metrics" =>
+                        "Use prepared statements, input validation, and output escaping.",
+                    "performance_hints" =>
+                        "Avoid N+1 queries, use generators for large datasets, cache results.",
+                    "documentation" =>
+                        "Add docblocks to public/protected methods describing purpose and parameters.",
+                    "test_coverage" =>
+                        "Add unit tests and use mocking for better test coverage.",
+                    "coding_standards" =>
+                        "Follow PSR standards: line length < 120, no trailing whitespace, brace style.",
+                ];
+
+                $output .= "\nFile Metrics:\n";
+                $hasNegativeFileMetrics = false;
+                foreach ($data["file"] as $metric => $value) {
+                    if ($value < 0) {
+                        $hasNegativeFileMetrics = true;
+                        $output .= "* {$metric}: " . number_format($value, 1) . ";";
+                        if (isset($fileMetricNotes[$metric])) {
+                            $output .= " // " . $fileMetricNotes[$metric] . "\n";
+                        }
+                    }
+                }
+
+                if (!$hasNegativeFileMetrics) {
+                    $output .= "No negative file metrics found. Good job!\n";
                 }
 
                 return $output;
@@ -3783,6 +3896,30 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return $praise;
         }
         # metric_builtin_usage end
+
+        # metric_if_else_balance begin
+        function metricIfElseBalance(string $name, string $body): float
+        {
+            if (preg_match("/\{([\s\S]*?)\}/", $body, $m)) {
+                $body = $m[1];
+            }
+
+            $ifCount = preg_match_all("/\bif\s*\(/i", $body);
+            $elseCount = preg_match_all("/\belse\b/i", $body);
+
+            $elseifCount = preg_match_all("/\belseif\b/i", $body);
+            $elseIfCount = preg_match_all("/\belse\s+if\b/i", $body);
+
+            $totalElse = $elseCount + $elseifCount + $elseIfCount;
+
+            if ($ifCount > $totalElse) {
+                $unbalancedIfs = $ifCount - $totalElse;
+                return $unbalancedIfs * -0.15;
+            }
+
+            return 0.0;
+        }
+        # metric_if_else_balance end
         # cli_rank end
 
         # cli_serve begin
