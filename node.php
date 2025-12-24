@@ -4923,7 +4923,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             "]\n\n";
 
         unset($ROOT_PATHS);
-        echo "{$r}\n";
+        echo ($r ?? "NODE CLI: NULL") . "\n";
     }
 
     /**
