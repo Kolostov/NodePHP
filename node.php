@@ -1524,10 +1524,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             switch ($action) {
                 case "list":
-                    $lines = file(
-                        $envFile,
-                        FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES,
-                    );
+                    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
                     $output = "Environment variables:\n";
                     foreach ($lines as $line) {
                         if (!str_starts_with($line, "#")) {
@@ -1599,10 +1596,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $backup = file_get_contents($envFile);
             }
 
-            file_put_contents(
-                $envFile,
-                "# Environment variables\nTEST_KEY=test_value\nANOTHER_KEY=another_value\n",
-            );
+            file_put_contents($envFile, "# Environment variables\nTEST_KEY=test_value\nANOTHER_KEY=another_value\n");
 
             if (str_starts_with(cli_env(true, []), "<action>") === false) {
                 file_put_contents($envFile, $backup);
@@ -1649,16 +1643,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             $invalidSetResult = cli_env(false, ["set"]);
-            if (strpos($invalidSetResult, "E: Usage: env set KEY=VALUE") === false) {
+            if (strpos($invalidSetResult, "E: Usage: env set KEY = VALUE") === false) {
                 file_put_contents($envFile, $backup);
                 return 8;
             }
 
             $invalidFormatResult = cli_env(false, ["set", "NO_EQUALS_SIGN"]);
-            if (
-                strpos($invalidFormatResult, "E: Invalid format. Use KEY=VALUE") ===
-                false
-            ) {
+            if (strpos($invalidFormatResult, "E: Invalid format. Use KEY = VALUE") === false) {
                 file_put_contents($envFile, $backup);
                 return 9;
             }
@@ -1670,12 +1661,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             $unknownActionResult = cli_env(false, ["unknown"]);
-            if (
-                strpos(
-                    $unknownActionResult,
-                    "E: Unknown action. Available: list, set, get",
-                ) === false
-            ) {
+            if (strpos($unknownActionResult, "E: Unknown action. Available: list, set, get") === false) {
                 file_put_contents($envFile, $backup);
                 return 11;
             }
