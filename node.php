@@ -33,7 +33,7 @@ if (!defined("NODE_NAME")) {
             "Predicate" => "Boolean-returning decision functions",
             "Transformer" => "Pure data-to-data transformations",
             "Presenter" => "Formatting helpers (headers, payloads)",
-            "CLI" => "CLI command entrypoints (side-effectful)",
+            "Command" => "Executable entry functions (cli_*)",
         ],
 
         "Trait" => [
