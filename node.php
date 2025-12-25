@@ -806,18 +806,6 @@ if (!function_exists("f")) {
     }
     # structure_deploy end
 
-    # vendor_autoload begin
-    /**
-     * @var string $LOCAL_PATH Node.php defined path of current node.
-     */
-
-    $LOCAL_VENDOR = "{$LOCAL_PATH}vendor" . D . "autoload.php";
-    if (file_exists($LOCAL_VENDOR)) {
-        include_once $LOCAL_VENDOR;
-    }
-    unset($LOCAL_VENDOR);
-    # vendor_autoload end
-
     # structure_include begin
     function _node_structure_include(array $STRUCTURE, string $PATH, array $NODES): void
     {
@@ -978,6 +966,18 @@ if (!function_exists("f")) {
 }
 node_subinclude:
 # skip_end
+
+# vendor_autoload begin
+/**
+ * @var string $LOCAL_PATH Node.php defined path of current node.
+ */
+
+$LOCAL_VENDOR = "{$LOCAL_PATH}vendor" . D . "autoload.php";
+if (file_exists($LOCAL_VENDOR)) {
+    include_once $LOCAL_VENDOR;
+}
+unset($LOCAL_VENDOR);
+# vendor_autoload end
 
 # Include this node files and if $NODE_REQUIRE is not empty do subincludes.
 _node_structure_include($NODE_STRUCTURE, $LOCAL_PATH, $NODE_REQUIRE);
