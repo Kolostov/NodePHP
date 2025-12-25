@@ -75,17 +75,36 @@ if (!defined("NODE_NAME")) {
 
         "Class" => [
             "Final" => [
-                "Presentation" => [
-                    "Controller" => "Concrete request handler",
-                    "Endpoint" => "Concrete public API endpoint",
-                    "Responder" => "Concrete response formatter",
-                    "View" => "Concrete renderable template",
-                    "Component" => "Reusable UI or API component",
+                "Model" => [
+                    "Entity" => "Domain object with identity and business logic",
+                    "Domain" => "Pure business logic (aggregates, value objects)",
+                    "Repository" => "Concrete persistence implementation",
+                    "Service" => "Business logic orchestration",
+                    "Validator" => "Data validation and integrity checking",
+                ],
+
+                "View" => [
+                    "Template" => "HTML/XML/JSON template files",
+                    "Partial" => "Reusable view components",
+                    "Layout" => "Base template structure",
+                    "Component" => "Self-contained UI components",
+                    "Renderer" => "Template rendering engine",
+                ],
+
+                "Controller" => [
+                    "Action" => "Single action controller",
+                    "Resource" => "RESTful resource controller",
+                    "Page" => "Web page controller",
+                    "API" => "API endpoint controller",
+                    "Middleware" => "Request/response processing middleware",
                 ],
 
                 "ValueObject" => "Immutable identity-less value",
-                "DTO" => "Transport-only data carrier",
-                "Entity" => "Domain object with identity",
+                "DTO" => [
+                    "Request" => "Incoming request data transfer",
+                    "Response" => "Outgoing response data transfer",
+                    "Form" => "Form data structure",
+                ],
 
                 "Behavioral" => [
                     "Strategy" => "Concrete interchangeable algorithm",
@@ -107,6 +126,7 @@ if (!defined("NODE_NAME")) {
                 ],
 
                 "Coordination" => [
+                    "Router" => "Request routing logic",
                     "Mediator" => "Central interaction coordinator",
                     "EventDispatcher" => "Concrete event publisher",
                     "Pipeline" => "Sequential processing chain",
@@ -116,29 +136,37 @@ if (!defined("NODE_NAME")) {
                     "Service" => "Stateless application service",
                     "Client" => "Concrete outbound integration",
                     "Gateway" => "Concrete external boundary",
+                    "Cache" => "Caching implementation",
                 ],
             ],
 
             "Abstract" => [
-                "Presentation" => [
-                    "Controller" => "Controller base",
-                    "Endpoint" => "Endpoint base",
-                    "Responder" => "Responder base",
+                "Model" => [
+                    "Base" => "Base model with common CRUD operations",
+                    "Repository" => "Abstract repository pattern",
+                    "Entity" => "Base entity class",
                 ],
-                "Base" => [
-                    "Controller" => "Request-handling base class",
-                    "Service" => "Shared service logic base",
-                    "Repository" => "Persistence base implementation",
-                    "Command" => "Command base abstraction",
+                "Controller" => [
+                    "Base" => "Base controller with common functionality",
+                    "REST" => "Base RESTful controller",
+                    "API" => "Base API controller",
+                ],
+                "View" => [
+                    "Base" => "Base view renderer",
+                    "Template" => "Base template engine",
+                ],
+                "Service" => [
+                    "Base" => "Shared service logic base",
+                    "Application" => "Base application service",
                 ],
                 "Infrastructure" => [
                     "Database" => "Database integration base",
                     "Migration" => "Abstract migration base",
                     "Transport" => "Communication transport base",
-                    "Cache" => "Caching mechanism base",
                 ],
             ],
         ],
+
         "Public" => [
             "Entry" => "Front entrypoints (index.php, api.php, .htaccess)",
             "Static" => [
@@ -156,6 +184,33 @@ if (!defined("NODE_NAME")) {
                 "Build" => "Build outputs",
             ],
         ],
+
+        "App" => [
+            "Controller" => "Application controllers",
+            "Model" => [
+                "Entity" => "Domain entities",
+                "Repository" => "Data access layer",
+                "Service" => "Business logic services",
+                "Validation" => "Validation rules and logic",
+            ],
+            "View" => [
+                "Template" => "View templates",
+                "Layout" => "Layout files",
+                "Component" => "Reusable view components",
+                "Partial" => "Partial view snippets",
+            ],
+            "Middleware" => "Request/response middleware",
+            "Exception" => "Custom exception classes",
+        ],
+
+        "Config" => [
+            "Application" => "App configuration files",
+            "Database" => "Database configuration",
+            "Routing" => "Route definitions",
+            "View" => "Template engine configuration",
+            "Service" => "Dependency injection configuration",
+        ],
+
         "Database" => [
             "Schema" => "Database structure definitions and DDL",
             "Seed" => "Initial and test data population scripts",
@@ -171,28 +226,73 @@ if (!defined("NODE_NAME")) {
                 "Index" => "Flat file indexing systems",
             ],
         ],
+
         "Migration" => [
             "Base" => "Abstract migration base class",
             "SQL" => "Raw SQL migration",
             "PHP" => "Programmatic migration class",
         ],
+
+        "Route" => [
+            "Web" => "Web route definitions",
+            "API" => "API route definitions",
+            "Console" => "CLI command routes",
+            "Middleware" => "Route-specific middleware",
+        ],
+
         "Test" => [
-            "Unit" => "Self-contained class or function tests",
+            "Unit" => [
+                "Model" => "Model/entity tests",
+                "Controller" => "Controller tests",
+                "Service" => "Service layer tests",
+            ],
+            "Feature" => [
+                "Web" => "Full web request tests",
+                "API" => "API endpoint tests",
+            ],
             "Integration" => "Tests involving multiple nodes",
             "Contract" => "Interface compliance tests",
             "E2E" => "Full end-to-end request/response tests",
         ],
+
+        "Resource" => [
+            "View" => "Template files (.php, .html, .twig)",
+            "Translation" => "Language files",
+            "Config" => "Configuration templates",
+        ],
+
+        "Console" => [
+            "Command" => "CLI commands",
+            "Scheduler" => "Scheduled task definitions",
+            "Output" => "Command output formatters",
+        ],
+
+        "Event" => [
+            "Listener" => "Event listeners/handlers",
+            "Subscriber" => "Event subscribers",
+            "Dispatcher" => "Event dispatching logic",
+        ],
+
+        "Provider" => [
+            "Service" => "Service providers",
+            "Event" => "Event service providers",
+            "Route" => "Route service providers",
+        ],
+
         "Deprecated" => "Files that are considered deprecated.",
+
         "Log" => [
             "Internal" => "Application runtime logs",
             "Access" => "HTTP request logs",
             "Error" => "Error and exception logs",
             "Audit" => "Security and audit trails",
         ],
+
         "Git" => [
             "Node" => "Node.php project repository",
             "Project" => "All excluding the Node.php",
         ],
+
         "Backup" => "Zips of backed up states",
     ]);
     # skip_end
@@ -739,6 +839,34 @@ if (!function_exists("f")) {
     # structure_include begin
     function _node_structure_include(array $STRUCTURE, string $PATH, array $NODES): void
     {
+        # Include requested nodes.
+        if (is_array($NODES) && !empty($NODES)) {
+            foreach ($NODES as $node) {
+                $path = $PATH . ".." . D . $node;
+
+                if ($check = realpath($path)) {
+                    $file = file_exists($check . D . "node.include.php")
+                        ? $check . D . "node.include.php"
+                        : $check . D . "node.php";
+
+                    if (file_exists($file)) {
+                        include_once $file;
+                    } else {
+                        # Impossible optimization:
+                        # 1. set new node location,
+                        # 2. goto to beginnong of current node.php,
+                        # 3. process as if in included node
+                        # 4. continue within this oop
+                        # instead we throw
+                        throw new Exception("Node {$PATH} requires node that does not exist at: {$path}.", 0);
+                    }
+                } else {
+                    # Targeted directory simply did not exist.
+                    throw new Exception("Node {$PATH} requires node at: {$path} which folder not found.", 0);
+                }
+            }
+        }
+
         $walk = function (string $path): string {
             if (strpos($path, "..") !== false) {
                 return "";
@@ -771,34 +899,6 @@ if (!function_exists("f")) {
 
         # Walk local resources.
         _node_structure_walk($STRUCTURE, $walk, "", $PATH);
-
-        # Include requested nodes.
-        if (is_array($NODES) && !empty($NODES)) {
-            foreach ($NODES as $node) {
-                $path = $PATH . ".." . D . $node;
-
-                if ($check = realpath($path)) {
-                    $file = file_exists($check . D . "node.include.php")
-                        ? $check . D . "node.include.php"
-                        : $check . D . "node.php";
-
-                    if (file_exists($file)) {
-                        include_once $file;
-                    } else {
-                        # Impossible optimization:
-                        # 1. set new node location,
-                        # 2. goto to beginnong of current node.php,
-                        # 3. process as if in included node
-                        # 4. continue within this oop
-                        # instead we throw
-                        throw new Exception("Node {$PATH} requires node that does not exist at: {$path}.", 0);
-                    }
-                } else {
-                    # Targeted directory simply did not exist.
-                    throw new Exception("Node {$PATH} requires node at: {$path} which folder not found.", 0);
-                }
-            }
-        }
     }
     # structure_include end
 
