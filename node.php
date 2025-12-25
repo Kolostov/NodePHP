@@ -20,7 +20,7 @@ if (!defined("NODE_NAME")) {
     define("ROOT_PATH", $LOCAL_PATH);
 
     define("LOG_PATH", ROOT_PATH . "Log" . D);
-    $NODE_DEFAULT_STRUCTURES = [
+    define("NODE_DEFAULT_STRUCTURES", [
         "Enum" => [
             "State" => "Finite lifecycle state (Draft, Active, ...)",
             "Status" => "Operational status (OK, Failed, Pending)",
@@ -195,7 +195,7 @@ if (!defined("NODE_NAME")) {
             "Project" => "All excluding the Node.php",
         ],
         "Backup" => "Zips of backed up states",
-    ];
+    ]);
     # skip_end
 } else {
     # Add self to root paths for file inclusion checkng.
@@ -357,7 +357,6 @@ if (!function_exists("_node_min")) {
 # node_structure begin
 /**
  * @var string $LOCAL_PATH curret node local path from node.php
- * @var array $NODE_DEFAULT_STRUCTURES builtin strucure tree that can be added to.
  * @var array $RUN_STRING array of calls to run in sequence from node.php
  */
 
@@ -366,7 +365,7 @@ try {
         ? json_decode(file_get_contents($NODE_STRUCTURE_DEFINITIONS), !0, 512, JSON_THROW_ON_ERROR)
         : null;
 
-    $NODE_STRUCTURE = array_merge_recursive($NODE_DEFAULT_STRUCTURES, $node["structure"] ?? []);
+    $NODE_STRUCTURE = array_merge_recursive(NODE_DEFAULT_STRUCTURES, $node["structure"] ?? []);
 
     unset($NODE_STRUCTURE_DEFINITIONS);
 
@@ -891,9 +890,6 @@ _node_structure_include($NODE_STRUCTURE, $LOCAL_PATH, $NODE_REQUIRE);
 unset($NODE_STRUCTURE, $NODE_REQUIRE);
 
 # skip_begin
-# Free memory after including of subnodes.
-unset($NODE_DEFAULT_STRUCTURES);
-
 # Check if node is the root node and load
 # all of the CLI only once at root node path.
 if ($LOCAL_PATH === ROOT_PATH) {
