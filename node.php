@@ -6,7 +6,6 @@ $NODE_STRUCTURE_DEFINITIONS = "{$LOCAL_PATH}node.json";
 # Main entry point declarations
 if (!defined("NODE_NAME")) {
     str_ends_with(__FILE__, "node.include.php") && die("E: running without parent node inclusion.");
-
     # skip_begin
     define("SUPERGLOBALS", ["argv", "argc", "_GET", "_POST", "_COOKIE", "_FILES", "_SERVER"]);
     ini_set("display_errors", !0);
@@ -204,35 +203,25 @@ if (!defined("NODE_NAME")) {
 
 # skip_begin
 if (!function_exists("_node_min")) {
-    function _node_min(
+    function _node_strip(
         string $target = "node.php",
         string $sfx = "min",
-        ?string $PATH = null,
-        array $rmPrefix = [],
-    ): int {
-        $PATH ??= realpath(__DIR__) . D;
-        $sourceFile = "{$PATH}{$target}";
-
-        if (!file_exists($sourceFile)) {
-            return 1;
-        }
-
-        $file = pathinfo($target);
-        $ext = strtolower($file["extension"] ?? "");
-
-        if ($ext !== "php") {
-            return 2;
-        }
-        $name = ($file["dirname"] !== "." ? $file["dirname"] . D : "") . $file["filename"];
+        ?string $path = null,
+        ?array $rmPrefix = null,
+    ): string {
+        $path ??= realpath(__DIR__) . D;
+        $sourceFile = "{$path}{$target}";
 
         $source = file_get_contents($sourceFile);
 
-        // Step 1: Remove ALL skip blocks completely
-        $source = preg_replace(
-            '/(^|\n)[^\n]*?#\s*skip_begin\s*\n[\s\S]*?\n[^\n]*?#\s*skip_end\s*(\n|$)/',
-            '$1',
-            $source,
-        );
+        if ($sfx === "include") {
+            // Step 1: Remove ALL skip blocks completely
+            $source = preg_replace(
+                '/(^|\n)[^\n]*?#\s*skip_begin\s*\n[\s\S]*?\n[^\n]*?#\s*skip_end\s*(\n|$)/',
+                '$1',
+                $source,
+            );
+        }
 
         // Step 2: Remove all PHP comments using tokenizer
         $tokens = token_get_all($source);
@@ -246,7 +235,6 @@ if (!function_exists("_node_min")) {
 
             [$tokenId, $tokenValue] = $token;
 
-            // Skip comment tokens
             if ($tokenId === T_COMMENT || $tokenId === T_DOC_COMMENT) {
                 continue;
             }
@@ -254,95 +242,118 @@ if (!function_exists("_node_min")) {
             $withoutComments .= $tokenValue;
         }
 
-        // Step 3: Process to remove functions - using a state machine approach
-        $lines = explode("\n", $withoutComments);
-        $output = "";
-        $skipFunction = false;
+        // Step 3: Strip functions by prefix using token ownership (correct)
+        $tokens = token_get_all($withoutComments);
+        $remove = false;
         $braceDepth = 0;
-        $functionBuffer = ""; // For multiline function declarations
-        $inFunctionDeclaration = false;
+        $out = "";
 
-        foreach ($lines as $line) {
-            $trimmedLine = trim($line);
+        foreach ($tokens as $tokenNumber => $t) {
+            if (is_array($t)) {
+                if (!$remove && $t[0] === T_FUNCTION) {
+                    $tokenPadding = $tokenNumber + 1;
+                    while (
+                        isset($tokens[$tokenPadding]) &&
+                        is_array($tokens[$tokenPadding]) &&
+                        $tokens[$tokenPadding][0] === T_WHITESPACE
+                    ) {
+                        $tokenPadding++;
+                    }
 
-            // If we're skipping a function body
-            if ($skipFunction) {
-                // Count braces
-                $braceDepth += substr_count($line, "{");
-                $braceDepth -= substr_count($line, "}");
-
-                // If we've closed all braces, stop skipping
-                if ($braceDepth <= 0) {
-                    $skipFunction = false;
-                    $braceDepth = 0;
-                    $functionBuffer = "";
-                    $inFunctionDeclaration = false;
-                }
-                continue;
-            }
-
-            // Check if we're in the middle of a multiline function declaration
-            if ($inFunctionDeclaration) {
-                $functionBuffer .= " " . $trimmedLine;
-
-                // Check if we now have the opening brace
-                if (strpos($functionBuffer, "{") !== false) {
-                    $inFunctionDeclaration = false;
-                    // The function declaration ends with opening brace
-                    // The body will be handled by the skipFunction logic
-                    continue;
-                }
-
-                // Still no brace, continue collecting
-                continue;
-            }
-
-            // Check for function declaration
-            if (preg_match("/^\s*function\s+(\w+)/", $trimmedLine, $matches)) {
-                $functionName = $matches[1];
-
-                // Check if function should be removed
-                $shouldRemove = false;
-                if (!empty($rmPrefix)) {
-                    foreach ($rmPrefix as $prefix) {
-                        if (strpos($functionName, $prefix) === 0) {
-                            $shouldRemove = true;
-                            break;
+                    if (isset($tokens[$tokenPadding]) && is_array($tokens[$tokenPadding]) && isset($tokenPadding)) {
+                        foreach ($rmPrefix as $prefix) {
+                            if (str_starts_with($tokens[$tokenPadding][1], $prefix)) {
+                                $braceDepth = 0;
+                                $remove = true;
+                                break;
+                            }
                         }
                     }
                 }
-
-                if ($shouldRemove) {
-                    // Check if opening brace is on same line
-                    if (strpos($trimmedLine, "{") !== false) {
-                        $skipFunction = true;
-                        $braceDepth = 1;
-                        // Remove any closing brace on same line (for one-liners)
-                        $braceDepth -= substr_count($trimmedLine, "}");
-
-                        if ($braceDepth <= 0) {
-                            $skipFunction = false;
-                            $braceDepth = 0;
-                        }
-                    } else {
-                        // Multiline declaration, start collecting
-                        $inFunctionDeclaration = true;
-                        $functionBuffer = $trimmedLine;
-                    }
-                    continue;
-                }
             }
 
-            // Add line to output
-            $output .= $line . "\n";
+            $token = is_string($t) ? $t : $t[1];
+            if ($remove) {
+                $isStringToken =
+                    is_array($t) &&
+                    in_array($t[0], [
+                        T_CONSTANT_ENCAPSED_STRING,
+                        T_ENCAPSED_AND_WHITESPACE,
+                        T_START_HEREDOC,
+                        T_END_HEREDOC,
+                    ]);
+                if (!$isStringToken) {
+                    $braceDepth += substr_count($token, "{");
+
+                    if (strpos($token, "}") !== false) {
+                        $braceDepth -= substr_count($token, "}");
+                        if ($braceDepth === 0) {
+                            $remove = false;
+                        }
+                    }
+                }
+                continue;
+            }
+            $out .= $token;
         }
 
         // Step 4: Clean up
-        $output = preg_replace('/\n\s*\n\s*\n+/', "\n\n", $output);
-        $output = trim($output);
+        $out = preg_replace('/\n\s*\n\s*\n+/', "\n\n", $out);
+        $out = preg_replace('/^\s*[\r\n]/m', "", $out);
+        $out = trim($out);
 
-        return file_put_contents("{$PATH}{$name}.{$sfx}.{$ext}", $output) !== false ? 0 : 3;
+        return $out;
     }
+
+    # Wrapper that writes node_strip.
+    function _node_min(string $t = "node.php", string $s = "min", ?string $p = null, ?array $r = []): int
+    {
+        $o = _node_strip($t, $s, $p, $r);
+
+        # Read file path parts to separate vars
+        $file = pathinfo($t);
+        $ext = strtolower($file["extension"] ?? "");
+
+        $name = ($file["dirname"] !== "." ? $file["dirname"] . D : "") . $file["filename"];
+
+        return !empty($o) && file_put_contents("{$p}{$name}.{$s}.{$ext}", $o) !== false ? 0 : 1;
+    }
+
+    function _node_clean_whitespace(string $src): string
+    {
+        // Pattern breakdown:
+        // 1. Double & Single quoted strings (handles escapes)
+        // 2. Heredocs/Nowdocs: captures any marker and finds its match
+        // 3. Whitespace: Captured only if not inside the above
+        $pattern = '/
+            "(?:[^"\\\\]|\\\\.)*" |
+            \'(?:[^\'\\\\]|\\\\.)*\' |
+
+            # HEREDOC/NOWDOC
+            <<<(?:\'|")?(?<marker>[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*)(?:\'|")? # Open tag
+            [\s\S]*?                                                               # Content
+            ^\s*\k<marker>;?                                                       # Closing tag
+
+            | # OR
+
+            (?<whitespace>\s+)
+        /mx';
+
+        return preg_replace_callback(
+            $pattern,
+            function ($matches) {
+                // If we matched the whitespace group, remove it
+                if (!empty($matches["whitespace"])) {
+                    return "";
+                }
+
+                // Otherwise, return the string/heredoc block as-is
+                return $matches[0];
+            },
+            $src,
+        );
+    }
+
     _node_min("node.php", "include", $LOCAL_PATH) && die("E: {$LOCAL_PATH} could not write node.include.php");
 }
 # skip_end
@@ -992,7 +1003,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             if (!$hasZip) {
-                return createTarBackup($backupDir, $backupName);
+                return _node_create_tar_backup($backupDir, $backupName);
             }
 
             if (file_exists($zipName)) {
@@ -1042,7 +1053,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return "Backup created: {$zipName} ({$added} files, " . number_format($size / 1024 / 1024, 2) . " MB)\n";
         }
 
-        function createTarBackup(string $backupDir, string $backupName): string
+        function _node_create_tar_backup(string $backupDir, string $backupName): string
         {
             $tarName = "{$backupDir}{$backupName}.tar.gz";
 
@@ -1068,7 +1079,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             if ($returnCode === 0) {
                 $size = filesize($tarName);
-                $fileCount = countFilesInTar($tarName);
+                $fileCount = _node_count_files_in_tar($tarName);
 
                 return "Backup created (tar.gz): {$tarName} ({$fileCount} files, " .
                     number_format($size / 1024 / 1024, 2) .
@@ -1084,7 +1095,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 "\n";
         }
 
-        function countFilesInTar(string $tarFile): int
+        function _node_count_files_in_tar(string $tarFile): int
         {
             exec("tar -tzf " . escapeshellarg($tarFile) . " 2>/dev/null | wc -l", $output, $returnCode);
 
@@ -1233,7 +1244,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             function findExternalDependencies(string $content): array
             {
                 $deps = [];
-                $tokens = token_get_all("<?php " . $content);
+                $tokens = token_get_all("<?php {$content}");
 
                 for ($i = 0; $i < count($tokens); $i++) {
                     $token = $tokens[$i];
@@ -1436,7 +1447,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $relativePath = str_replace(ROOT_PATH, "", $targetData["file"]);
 
             // Output main target
-            $output .= "# " . $relativePath . "\n";
+            $output .= "# {$relativePath}\n";
             if ($targetData["desc"]) {
                 $output .= "# " . $targetData["desc"] . "\n";
             }
@@ -1634,6 +1645,22 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return ob_get_clean();
         }
         # cli_dump end
+
+        # cli_emit begin
+        function _node_cli_emit(bool $tooltip = false, array $argv = []): string
+        {
+            if ($tooltip) {
+                return "<state> States: full, runtime, include";
+            }
+
+            return match ($argv[0]) {
+                "full" => file_get_contents(__FILE__),
+                "runtime" => _node_strip("node.php", "min", ROOT_PATH, ["_node_", "test_"]),
+                "include" => _node_strip("node.php", "include", ROOT_PATH),
+                default => _node_clean_whitespace(file_get_contents(__FILE__)),
+            };
+        }
+        # cli_emit end
 
         # cli_env begin
         function _node_cli_env(bool $tooltip = false, array $argv = []): string
