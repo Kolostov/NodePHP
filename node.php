@@ -141,6 +141,7 @@ if (!defined("NODE_NAME")) {
                         "Service" => "Stateless application service",
                         "Client" => "Concrete outbound integration",
                         "Gateway" => "Concrete external boundary",
+                        "Mapper" => "Infrastructure data mappers (DTO <-> persistence)",
                     ],
                 ],
 
