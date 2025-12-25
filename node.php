@@ -354,9 +354,10 @@ if (!function_exists("_node_min")) {
  * @var array  $NODE_REQUIRE Array of paths to another nodes required by this node.
  */
 
-# node_structure begin
+# structure_node begin
 /**
  * @var string $LOCAL_PATH curret node local path from node.php
+ * @var string $NODE_STRUCTURE_DEFINITIONS path to node structure definitions.
  * @var array $RUN_STRING array of calls to run in sequence from node.php
  */
 
@@ -454,7 +455,7 @@ try {
     # Cannot set/combine the node structure.
     throw new RuntimeException("Invalid {$NODE_STRUCTURE_DEFINITIONS}: " . json_last_error_msg(), 0, $e);
 }
-# node_structure end
+# structure_node end
 
 # skip_begin
 # Checking if we're currently within root node to include
@@ -842,7 +843,11 @@ if (!function_exists("f")) {
         $leaf = end($parts); // e.g., Repository, Command, Controller
         $type = reset($parts); // e.g., Class, Interface, Function
 
-        $namespace = !empty($parts) ? "namespace " . implode("\\", array_map("ucfirst", $parts)) . ";\n\n" : "";
+        # Skip namespacing functions.
+        $namespace =
+            !empty($parts) || $type == "Function"
+                ? "namespace " . implode("\\", array_map("ucfirst", $parts)) . ";\n\n"
+                : "";
 
         $keyword = match ($type) {
             "Interface" => "interface",
@@ -855,7 +860,7 @@ if (!function_exists("f")) {
 
         $className = match ($type) {
             "Enum" => $name,
-            "Function" => $name,
+            "Function" => "{$name}() : void",
             default => "{$name}{$leaf}",
         };
 
@@ -2868,7 +2873,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         } else {
                             // Regular resource creation
                             $fc = _node_generate_boilerplate($c[1], $name, ROOT_PATH);
-                            $fn = $c[1] . D . "{$name}{$fc[1]}.php";
+                            $fn = str_starts_with($name, strtolower($fc[1]) . "_")
+                                ? $c[1] . D . "{$name}.php"
+                                : $c[1] . D . "{$name}{$fc[1]}.php";
+
                             if (!file_exists($fn)) {
                                 $size = file_put_contents($fn, $fc[0]);
                                 return "File created at {$fn} size {$size} bytes.\n";
