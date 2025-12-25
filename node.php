@@ -203,138 +203,148 @@ if (!defined("NODE_NAME")) {
 }
 
 # skip_begin
-function _node_min(string $target = "node.php", string $sfx = "min", ?string $PATH = null, array $rmPrefix = []): int
-{
-    $PATH ??= realpath(__DIR__) . D;
-    $sourceFile = "{$PATH}{$target}";
+if (!function_exists("_node_min")) {
+    function _node_min(
+        string $target = "node.php",
+        string $sfx = "min",
+        ?string $PATH = null,
+        array $rmPrefix = [],
+    ): int {
+        $PATH ??= realpath(__DIR__) . D;
+        $sourceFile = "{$PATH}{$target}";
 
-    if (!file_exists($sourceFile)) {
-        return 1;
-    }
-
-    $file = pathinfo($target);
-    $ext = strtolower($file["extension"] ?? "");
-
-    if ($ext !== "php") {
-        return 2;
-    }
-    $name = ($file["dirname"] !== "." ? $file["dirname"] . D : "") . $file["filename"];
-
-    $source = file_get_contents($sourceFile);
-
-    // Step 1: Remove ALL skip blocks completely
-    $source = preg_replace('/(^|\n)[^\n]*?#\s*skip_begin\s*\n[\s\S]*?\n[^\n]*?#\s*skip_end\s*(\n|$)/', '$1', $source);
-
-    // Step 2: Remove all PHP comments using tokenizer
-    $tokens = token_get_all($source);
-    $withoutComments = "";
-
-    foreach ($tokens as $token) {
-        if (is_string($token)) {
-            $withoutComments .= $token;
-            continue;
+        if (!file_exists($sourceFile)) {
+            return 1;
         }
 
-        [$tokenId, $tokenValue] = $token;
+        $file = pathinfo($target);
+        $ext = strtolower($file["extension"] ?? "");
 
-        // Skip comment tokens
-        if ($tokenId === T_COMMENT || $tokenId === T_DOC_COMMENT) {
-            continue;
+        if ($ext !== "php") {
+            return 2;
         }
+        $name = ($file["dirname"] !== "." ? $file["dirname"] . D : "") . $file["filename"];
 
-        $withoutComments .= $tokenValue;
-    }
+        $source = file_get_contents($sourceFile);
 
-    // Step 3: Process to remove functions - using a state machine approach
-    $lines = explode("\n", $withoutComments);
-    $output = "";
-    $skipFunction = false;
-    $braceDepth = 0;
-    $functionBuffer = ""; // For multiline function declarations
-    $inFunctionDeclaration = false;
+        // Step 1: Remove ALL skip blocks completely
+        $source = preg_replace(
+            '/(^|\n)[^\n]*?#\s*skip_begin\s*\n[\s\S]*?\n[^\n]*?#\s*skip_end\s*(\n|$)/',
+            '$1',
+            $source,
+        );
 
-    foreach ($lines as $line) {
-        $trimmedLine = trim($line);
+        // Step 2: Remove all PHP comments using tokenizer
+        $tokens = token_get_all($source);
+        $withoutComments = "";
 
-        // If we're skipping a function body
-        if ($skipFunction) {
-            // Count braces
-            $braceDepth += substr_count($line, "{");
-            $braceDepth -= substr_count($line, "}");
-
-            // If we've closed all braces, stop skipping
-            if ($braceDepth <= 0) {
-                $skipFunction = false;
-                $braceDepth = 0;
-                $functionBuffer = "";
-                $inFunctionDeclaration = false;
-            }
-            continue;
-        }
-
-        // Check if we're in the middle of a multiline function declaration
-        if ($inFunctionDeclaration) {
-            $functionBuffer .= " " . $trimmedLine;
-
-            // Check if we now have the opening brace
-            if (strpos($functionBuffer, "{") !== false) {
-                $inFunctionDeclaration = false;
-                // The function declaration ends with opening brace
-                // The body will be handled by the skipFunction logic
+        foreach ($tokens as $token) {
+            if (is_string($token)) {
+                $withoutComments .= $token;
                 continue;
             }
 
-            // Still no brace, continue collecting
-            continue;
-        }
+            [$tokenId, $tokenValue] = $token;
 
-        // Check for function declaration
-        if (preg_match("/^\s*function\s+(\w+)/", $trimmedLine, $matches)) {
-            $functionName = $matches[1];
-
-            // Check if function should be removed
-            $shouldRemove = false;
-            if (!empty($rmPrefix)) {
-                foreach ($rmPrefix as $prefix) {
-                    if (strpos($functionName, $prefix) === 0) {
-                        $shouldRemove = true;
-                        break;
-                    }
-                }
+            // Skip comment tokens
+            if ($tokenId === T_COMMENT || $tokenId === T_DOC_COMMENT) {
+                continue;
             }
 
-            if ($shouldRemove) {
-                // Check if opening brace is on same line
-                if (strpos($trimmedLine, "{") !== false) {
-                    $skipFunction = true;
-                    $braceDepth = 1;
-                    // Remove any closing brace on same line (for one-liners)
-                    $braceDepth -= substr_count($trimmedLine, "}");
+            $withoutComments .= $tokenValue;
+        }
 
-                    if ($braceDepth <= 0) {
-                        $skipFunction = false;
-                        $braceDepth = 0;
-                    }
-                } else {
-                    // Multiline declaration, start collecting
-                    $inFunctionDeclaration = true;
-                    $functionBuffer = $trimmedLine;
+        // Step 3: Process to remove functions - using a state machine approach
+        $lines = explode("\n", $withoutComments);
+        $output = "";
+        $skipFunction = false;
+        $braceDepth = 0;
+        $functionBuffer = ""; // For multiline function declarations
+        $inFunctionDeclaration = false;
+
+        foreach ($lines as $line) {
+            $trimmedLine = trim($line);
+
+            // If we're skipping a function body
+            if ($skipFunction) {
+                // Count braces
+                $braceDepth += substr_count($line, "{");
+                $braceDepth -= substr_count($line, "}");
+
+                // If we've closed all braces, stop skipping
+                if ($braceDepth <= 0) {
+                    $skipFunction = false;
+                    $braceDepth = 0;
+                    $functionBuffer = "";
+                    $inFunctionDeclaration = false;
                 }
                 continue;
             }
+
+            // Check if we're in the middle of a multiline function declaration
+            if ($inFunctionDeclaration) {
+                $functionBuffer .= " " . $trimmedLine;
+
+                // Check if we now have the opening brace
+                if (strpos($functionBuffer, "{") !== false) {
+                    $inFunctionDeclaration = false;
+                    // The function declaration ends with opening brace
+                    // The body will be handled by the skipFunction logic
+                    continue;
+                }
+
+                // Still no brace, continue collecting
+                continue;
+            }
+
+            // Check for function declaration
+            if (preg_match("/^\s*function\s+(\w+)/", $trimmedLine, $matches)) {
+                $functionName = $matches[1];
+
+                // Check if function should be removed
+                $shouldRemove = false;
+                if (!empty($rmPrefix)) {
+                    foreach ($rmPrefix as $prefix) {
+                        if (strpos($functionName, $prefix) === 0) {
+                            $shouldRemove = true;
+                            break;
+                        }
+                    }
+                }
+
+                if ($shouldRemove) {
+                    // Check if opening brace is on same line
+                    if (strpos($trimmedLine, "{") !== false) {
+                        $skipFunction = true;
+                        $braceDepth = 1;
+                        // Remove any closing brace on same line (for one-liners)
+                        $braceDepth -= substr_count($trimmedLine, "}");
+
+                        if ($braceDepth <= 0) {
+                            $skipFunction = false;
+                            $braceDepth = 0;
+                        }
+                    } else {
+                        // Multiline declaration, start collecting
+                        $inFunctionDeclaration = true;
+                        $functionBuffer = $trimmedLine;
+                    }
+                    continue;
+                }
+            }
+
+            // Add line to output
+            $output .= $line . "\n";
         }
 
-        // Add line to output
-        $output .= $line . "\n";
+        // Step 4: Clean up
+        $output = preg_replace('/\n\s*\n\s*\n+/', "\n\n", $output);
+        $output = trim($output);
+
+        return file_put_contents("{$PATH}{$name}.{$sfx}.{$ext}", $output) !== false ? 0 : 3;
     }
-
-    // Step 4: Clean up
-    $output = preg_replace('/\n\s*\n\s*\n+/', "\n\n", $output);
-    $output = trim($output);
-
-    return file_put_contents("{$PATH}{$name}.{$sfx}.{$ext}", $output) !== false ? 0 : 3;
+    _node_min("node.php", "include", $LOCAL_PATH) && die("E: {$LOCAL_PATH} could not write node.include.php");
 }
-_node_min("node.php", "include", $LOCAL_PATH) && die("E: {$LOCAL_PATH} could not write node.include.php");
 # skip_end
 
 /**
@@ -757,8 +767,8 @@ if (!function_exists("f")) {
                 $path = $PATH . ".." . D . $node;
 
                 if ($check = realpath($path)) {
-                    $file = file_exists($check . D . "node.min.php")
-                        ? $check . D . "node.min.php"
+                    $file = file_exists($check . D . "node.include.php")
+                        ? $check . D . "node.include.php"
                         : $check . D . "node.php";
 
                     if (file_exists($file)) {
