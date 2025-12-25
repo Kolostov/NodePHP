@@ -1,25 +1,341 @@
 <?php declare(strict_types=1);
-error_reporting(E_ALL);
 
 $LOCAL_PATH = realpath(__DIR__) . DIRECTORY_SEPARATOR;
+$NODE_STRUCTURE_DEFINITIONS = "{$LOCAL_PATH}node.json";
 
 # Main entry point declarations
 if (!defined("NODE_NAME")) {
+    str_ends_with(__FILE__, "node.include.php") && die("E: running without parent node inclusion.");
+
+    # skip_begin
+    define("SUPERGLOBALS", ["argv", "argc", "_GET", "_POST", "_COOKIE", "_FILES", "_SERVER"]);
     ini_set("display_errors", !0);
     $TIME_START = microtime(true);
     $ROOT_PATHS = [$LOCAL_PATH];
     $RUN_STRING = [];
 
+    error_reporting(E_ALL);
+
     define("D", DIRECTORY_SEPARATOR);
-
     define("ROOT_PATH", $LOCAL_PATH);
-    define("LOG_PATH", ROOT_PATH . "Log" . D);
 
-    define("SUPERGLOBALS", ["argv", "argc", "_GET", "_POST", "_COOKIE", "_FILES", "_SERVER"]);
+    define("LOG_PATH", ROOT_PATH . "Log" . D);
+    $NODE_DEFAULT_STRUCTURES = [
+        "Enum" => [
+            "State" => "Finite lifecycle state (Draft, Active, ...)",
+            "Status" => "Operational status (OK, Failed, Pending)",
+            "Type" => "Categorization or classification",
+            "Policy" => "Rule selection enum",
+        ],
+
+        "Function" => [
+            "Helper" => "Global stateless helpers",
+            "Predicate" => "Boolean-returning decision functions",
+            "Transformer" => "Pure data-to-data transformations",
+            "Presenter" => "Formatting helpers (headers, payloads)",
+            "CLI" => "CLI command entrypoints (side-effectful)",
+        ],
+
+        "Trait" => [
+            "Concern" => "Shared implementation across classes",
+            "Capability" => "Adds opt-in behavior (Loggable, Gainable)",
+            "Mixin" => "Pure helper logic without identity",
+        ],
+
+        "Interface" => [
+            "Presentation" => [
+                "Controller" => "Inbound request handling contract",
+                "Endpoint" => "Public callable API contract",
+                "Responder" => "Response formatting contract",
+                "View" => "Renderable view contract",
+            ],
+            "Behavioral" => [
+                "Strategy" => "Algorithm interchangeable at runtime",
+                "Command" => "Executable request abstraction",
+                "Specification" => "Combinable business rule",
+                "Policy" => "Decision rule contract",
+                "State" => "State-dependent behavior contract",
+            ],
+            "Structural" => [
+                "Repository" => "Persistence abstraction",
+                "Adapter" => "Interface translation layer",
+                "Proxy" => "Access-controlling surrogate",
+                "Decorator" => "Behavior-extending wrapper",
+            ],
+            "Creational" => [
+                "Factory" => "Object creation abstraction",
+                "Builder" => "Stepwise object construction",
+            ],
+            "Infrastructure" => [
+                "EventDispatcher" => "Event publication contract",
+                "Bus" => "Message transport contract",
+                "Gateway" => "External system boundary",
+                "Client" => "Outbound communication contract",
+            ],
+        ],
+
+        "Class" => [
+            "Final" => [
+                "Presentation" => [
+                    "Controller" => "Concrete request handler",
+                    "Endpoint" => "Concrete public API endpoint",
+                    "Responder" => "Concrete response formatter",
+                    "View" => "Concrete renderable template",
+                    "Component" => "Reusable UI or API component",
+                ],
+
+                "ValueObject" => "Immutable identity-less value",
+                "DTO" => "Transport-only data carrier",
+                "Entity" => "Domain object with identity",
+
+                "Behavioral" => [
+                    "Strategy" => "Concrete interchangeable algorithm",
+                    "Command" => "Executable intent",
+                    "Specification" => "Concrete business rule",
+                    "Policy" => "Concrete decision logic",
+                ],
+
+                "Structural" => [
+                    "Decorator" => "Behavior-extending wrapper implem.",
+                    "Adapter" => "Concrete interface translator",
+                    "Proxy" => "Concrete access surrogate",
+                    "Facade" => "Simplified subsystem interface",
+                ],
+
+                "Creational" => [
+                    "Factory" => "Concrete object creator",
+                    "Builder" => "Concrete stepwise constructor",
+                ],
+
+                "Coordination" => [
+                    "Mediator" => "Central interaction coordinator",
+                    "EventDispatcher" => "Concrete event publisher",
+                    "Pipeline" => "Sequential processing chain",
+                ],
+
+                "Infrastructure" => [
+                    "Service" => "Stateless application service",
+                    "Client" => "Concrete outbound integration",
+                    "Gateway" => "Concrete external boundary",
+                ],
+            ],
+
+            "Abstract" => [
+                "Presentation" => [
+                    "Controller" => "Controller base",
+                    "Endpoint" => "Endpoint base",
+                    "Responder" => "Responder base",
+                ],
+                "Base" => [
+                    "Controller" => "Request-handling base class",
+                    "Service" => "Shared service logic base",
+                    "Repository" => "Persistence base implementation",
+                    "Command" => "Command base abstraction",
+                ],
+                "Infrastructure" => [
+                    "Database" => "Database integration base",
+                    "Migration" => "Abstract migration base",
+                    "Transport" => "Communication transport base",
+                    "Cache" => "Caching mechanism base",
+                ],
+            ],
+        ],
+        "Public" => [
+            "Entry" => "Front entrypoints (index.php, api.php, .htaccess)",
+            "Static" => [
+                "Asset" => [
+                    "CSS" => "Compiled or authored stylesheets",
+                    "JS" => "Compiled or authored scripts",
+                    "IMG" => "Images (png, jpg, svg, webp)",
+                    "FONT" => "Web fonts",
+                ],
+                "Media" => [
+                    "Upload" => "User-uploaded files",
+                    "Cache" => "Publicly cacheable generated files",
+                ],
+                "Meta" => "robots.txt, security.txt, humans.txt, manifests",
+                "Build" => "Build outputs",
+            ],
+        ],
+        "Database" => [
+            "Schema" => "Database structure definitions and DDL",
+            "Seed" => "Initial and test data population scripts",
+            "Fixture" => "Test data sets and factories",
+            "Procedure" => "Stored procedures and functions",
+            "View" => "Database view definitions",
+            "Trigger" => "Database trigger definitions",
+            "Connection" => "Database configuration and connection pools",
+            "Flat" => [
+                "Storage" => "File-based database implementations",
+                "JSON" => "JSON-based document storage",
+                "Serialized" => "PHP serialized data files",
+                "Index" => "Flat file indexing systems",
+            ],
+        ],
+        "Migration" => [
+            "Base" => "Abstract migration base class",
+            "SQL" => "Raw SQL migration",
+            "PHP" => "Programmatic migration class",
+        ],
+        "Test" => [
+            "Unit" => "Self-contained class or function tests",
+            "Integration" => "Tests involving multiple nodes",
+            "Contract" => "Interface compliance tests",
+            "E2E" => "Full end-to-end request/response tests",
+        ],
+        "Deprecated" => "Files that are considered deprecated.",
+        "Log" => [
+            "Internal" => "Application runtime logs",
+            "Access" => "HTTP request logs",
+            "Error" => "Error and exception logs",
+            "Audit" => "Security and audit trails",
+        ],
+        "Git" => [
+            "Node" => "Node.php project repository",
+            "Project" => "All excluding the Node.php",
+        ],
+        "Backup" => "Zips of backed up states",
+    ];
+    # skip_end
 } else {
     # Add self to root paths for file inclusion checkng.
     $ROOT_PATHS[] = $LOCAL_PATH;
 }
+
+# skip_begin
+function _node_min(string $target = "node.php", string $sfx = "min", ?string $PATH = null, array $rmPrefix = []): int
+{
+    $PATH ??= realpath(__DIR__) . D;
+    $sourceFile = "{$PATH}{$target}";
+
+    if (!file_exists($sourceFile)) {
+        return 1;
+    }
+
+    $file = pathinfo($target);
+    $ext = strtolower($file["extension"] ?? "");
+
+    if ($ext !== "php") {
+        return 2;
+    }
+    $name = ($file["dirname"] !== "." ? $file["dirname"] . D : "") . $file["filename"];
+
+    $source = file_get_contents($sourceFile);
+
+    // Step 1: Remove ALL skip blocks completely
+    $source = preg_replace('/(^|\n)[^\n]*?#\s*skip_begin\s*\n[\s\S]*?\n[^\n]*?#\s*skip_end\s*(\n|$)/', '$1', $source);
+
+    // Step 2: Remove all PHP comments using tokenizer
+    $tokens = token_get_all($source);
+    $withoutComments = "";
+
+    foreach ($tokens as $token) {
+        if (is_string($token)) {
+            $withoutComments .= $token;
+            continue;
+        }
+
+        [$tokenId, $tokenValue] = $token;
+
+        // Skip comment tokens
+        if ($tokenId === T_COMMENT || $tokenId === T_DOC_COMMENT) {
+            continue;
+        }
+
+        $withoutComments .= $tokenValue;
+    }
+
+    // Step 3: Process to remove functions - using a state machine approach
+    $lines = explode("\n", $withoutComments);
+    $output = "";
+    $skipFunction = false;
+    $braceDepth = 0;
+    $functionBuffer = ""; // For multiline function declarations
+    $inFunctionDeclaration = false;
+
+    foreach ($lines as $line) {
+        $trimmedLine = trim($line);
+
+        // If we're skipping a function body
+        if ($skipFunction) {
+            // Count braces
+            $braceDepth += substr_count($line, "{");
+            $braceDepth -= substr_count($line, "}");
+
+            // If we've closed all braces, stop skipping
+            if ($braceDepth <= 0) {
+                $skipFunction = false;
+                $braceDepth = 0;
+                $functionBuffer = "";
+                $inFunctionDeclaration = false;
+            }
+            continue;
+        }
+
+        // Check if we're in the middle of a multiline function declaration
+        if ($inFunctionDeclaration) {
+            $functionBuffer .= " " . $trimmedLine;
+
+            // Check if we now have the opening brace
+            if (strpos($functionBuffer, "{") !== false) {
+                $inFunctionDeclaration = false;
+                // The function declaration ends with opening brace
+                // The body will be handled by the skipFunction logic
+                continue;
+            }
+
+            // Still no brace, continue collecting
+            continue;
+        }
+
+        // Check for function declaration
+        if (preg_match("/^\s*function\s+(\w+)/", $trimmedLine, $matches)) {
+            $functionName = $matches[1];
+
+            // Check if function should be removed
+            $shouldRemove = false;
+            if (!empty($rmPrefix)) {
+                foreach ($rmPrefix as $prefix) {
+                    if (strpos($functionName, $prefix) === 0) {
+                        $shouldRemove = true;
+                        break;
+                    }
+                }
+            }
+
+            if ($shouldRemove) {
+                // Check if opening brace is on same line
+                if (strpos($trimmedLine, "{") !== false) {
+                    $skipFunction = true;
+                    $braceDepth = 1;
+                    // Remove any closing brace on same line (for one-liners)
+                    $braceDepth -= substr_count($trimmedLine, "}");
+
+                    if ($braceDepth <= 0) {
+                        $skipFunction = false;
+                        $braceDepth = 0;
+                    }
+                } else {
+                    // Multiline declaration, start collecting
+                    $inFunctionDeclaration = true;
+                    $functionBuffer = $trimmedLine;
+                }
+                continue;
+            }
+        }
+
+        // Add line to output
+        $output .= $line . "\n";
+    }
+
+    // Step 4: Clean up
+    $output = preg_replace('/\n\s*\n\s*\n+/', "\n\n", $output);
+    $output = trim($output);
+
+    return file_put_contents("{$PATH}{$name}.{$sfx}.{$ext}", $output) !== false ? 0 : 3;
+}
+_node_min("node.php", "include", $LOCAL_PATH) && die("E: {$LOCAL_PATH} could not write node.include.php");
+# skip_end
 
 /**
  * Constructed in node_structure
@@ -31,198 +347,20 @@ if (!defined("NODE_NAME")) {
 # node_structure begin
 /**
  * @var string $LOCAL_PATH curret node local path from node.php
+ * @var array $NODE_DEFAULT_STRUCTURES builtin strucure tree that can be added to.
  * @var array $RUN_STRING array of calls to run in sequence from node.php
  */
-
-$NODE_STRUCTURE_DEFINITIONS = "{$LOCAL_PATH}node.json";
 
 try {
     $node = file_exists($NODE_STRUCTURE_DEFINITIONS)
         ? json_decode(file_get_contents($NODE_STRUCTURE_DEFINITIONS), !0, 512, JSON_THROW_ON_ERROR)
         : null;
 
-    $NODE_STRUCTURE = array_merge_recursive(
-        [
-            "Enum" => [
-                "State" => "Finite lifecycle state (Draft, Active, ...)",
-                "Status" => "Operational status (OK, Failed, Pending)",
-                "Type" => "Categorization or classification",
-                "Policy" => "Rule selection enum",
-            ],
-
-            "Function" => [
-                "Helper" => "Global stateless helpers",
-                "Predicate" => "Boolean-returning decision functions",
-                "Transformer" => "Pure data-to-data transformations",
-                "Presenter" => "Formatting helpers (headers, payloads)",
-                "CLI" => "CLI command entrypoints (side-effectful)",
-            ],
-
-            "Trait" => [
-                "Concern" => "Shared implementation across classes",
-                "Capability" => "Adds opt-in behavior (Loggable, Gainable)",
-                "Mixin" => "Pure helper logic without identity",
-            ],
-
-            "Interface" => [
-                "Presentation" => [
-                    "Controller" => "Inbound request handling contract",
-                    "Endpoint" => "Public callable API contract",
-                    "Responder" => "Response formatting contract",
-                    "View" => "Renderable view contract",
-                ],
-                "Behavioral" => [
-                    "Strategy" => "Algorithm interchangeable at runtime",
-                    "Command" => "Executable request abstraction",
-                    "Specification" => "Combinable business rule",
-                    "Policy" => "Decision rule contract",
-                    "State" => "State-dependent behavior contract",
-                ],
-                "Structural" => [
-                    "Repository" => "Persistence abstraction",
-                    "Adapter" => "Interface translation layer",
-                    "Proxy" => "Access-controlling surrogate",
-                    "Decorator" => "Behavior-extending wrapper",
-                ],
-                "Creational" => [
-                    "Factory" => "Object creation abstraction",
-                    "Builder" => "Stepwise object construction",
-                ],
-                "Infrastructure" => [
-                    "EventDispatcher" => "Event publication contract",
-                    "Bus" => "Message transport contract",
-                    "Gateway" => "External system boundary",
-                    "Client" => "Outbound communication contract",
-                ],
-            ],
-
-            "Class" => [
-                "Final" => [
-                    "Presentation" => [
-                        "Controller" => "Concrete request handler",
-                        "Endpoint" => "Concrete public API endpoint",
-                        "Responder" => "Concrete response formatter",
-                        "View" => "Concrete renderable template",
-                        "Component" => "Reusable UI or API component",
-                    ],
-
-                    "ValueObject" => "Immutable identity-less value",
-                    "DTO" => "Transport-only data carrier",
-                    "Entity" => "Domain object with identity",
-
-                    "Behavioral" => [
-                        "Strategy" => "Concrete interchangeable algorithm",
-                        "Command" => "Executable intent",
-                        "Specification" => "Concrete business rule",
-                        "Policy" => "Concrete decision logic",
-                    ],
-
-                    "Structural" => [
-                        "Decorator" => "Behavior-extending wrapper implem.",
-                        "Adapter" => "Concrete interface translator",
-                        "Proxy" => "Concrete access surrogate",
-                        "Facade" => "Simplified subsystem interface",
-                    ],
-
-                    "Creational" => [
-                        "Factory" => "Concrete object creator",
-                        "Builder" => "Concrete stepwise constructor",
-                    ],
-
-                    "Coordination" => [
-                        "Mediator" => "Central interaction coordinator",
-                        "EventDispatcher" => "Concrete event publisher",
-                        "Pipeline" => "Sequential processing chain",
-                    ],
-
-                    "Infrastructure" => [
-                        "Service" => "Stateless application service",
-                        "Client" => "Concrete outbound integration",
-                        "Gateway" => "Concrete external boundary",
-                    ],
-                ],
-
-                "Abstract" => [
-                    "Presentation" => [
-                        "Controller" => "Controller base",
-                        "Endpoint" => "Endpoint base",
-                        "Responder" => "Responder base",
-                    ],
-                    "Base" => [
-                        "Controller" => "Request-handling base class",
-                        "Service" => "Shared service logic base",
-                        "Repository" => "Persistence base implementation",
-                        "Command" => "Command base abstraction",
-                    ],
-                    "Infrastructure" => [
-                        "Database" => "Database integration base",
-                        "Migration" => "Abstract migration base",
-                        "Transport" => "Communication transport base",
-                        "Cache" => "Caching mechanism base",
-                    ],
-                ],
-            ],
-            "Public" => [
-                "Entry" => "Front entrypoints (index.php, api.php, .htaccess)",
-                "Static" => [
-                    "Asset" => [
-                        "CSS" => "Compiled or authored stylesheets",
-                        "JS" => "Compiled or authored scripts",
-                        "IMG" => "Images (png, jpg, svg, webp)",
-                        "FONT" => "Web fonts",
-                    ],
-                    "Media" => [
-                        "Upload" => "User-uploaded files",
-                        "Cache" => "Publicly cacheable generated files",
-                    ],
-                    "Meta" => "robots.txt, security.txt, humans.txt, manifests",
-                    "Build" => "Build outputs",
-                ],
-            ],
-            "Database" => [
-                "Schema" => "Database structure definitions and DDL",
-                "Seed" => "Initial and test data population scripts",
-                "Fixture" => "Test data sets and factories",
-                "Procedure" => "Stored procedures and functions",
-                "View" => "Database view definitions",
-                "Trigger" => "Database trigger definitions",
-                "Connection" => "Database configuration and connection pools",
-                "Flat" => [
-                    "Storage" => "File-based database implementations",
-                    "JSON" => "JSON-based document storage",
-                    "Serialized" => "PHP serialized data files",
-                    "Index" => "Flat file indexing systems",
-                ],
-            ],
-            "Migration" => [
-                "Base" => "Abstract migration base class",
-                "SQL" => "Raw SQL migration",
-                "PHP" => "Programmatic migration class",
-            ],
-            "Test" => [
-                "Unit" => "Self-contained class or function tests",
-                "Integration" => "Tests involving multiple nodes",
-                "Contract" => "Interface compliance tests",
-                "E2E" => "Full end-to-end request/response tests",
-            ],
-            "Deprecated" => "Files that are considered deprecated.",
-            "Log" => [
-                "Internal" => "Application runtime logs",
-                "Access" => "HTTP request logs",
-                "Error" => "Error and exception logs",
-                "Audit" => "Security and audit trails",
-            ],
-            "Git" => [
-                "Node" => "Node.php project repository",
-                "Project" => "All excluding the Node.php",
-            ],
-            "Backup" => "Zips of backed up states",
-        ],
-        $node["structure"] ?? [],
-    );
+    $NODE_STRUCTURE = array_merge_recursive($NODE_DEFAULT_STRUCTURES, $node["structure"] ?? []);
 
     unset($NODE_STRUCTURE_DEFINITIONS);
 
+    # skip_begin
     # Main entry point node.
     $NODE_NAME = $node["name"] ?? "Noname";
     if (defined("NODE_NAME") === !1) {
@@ -296,18 +434,20 @@ try {
             return $default;
         }
     }
+    unset($NODE_NAME);
+    # skip_end
 
     $NODE_REQUIRE = $node["require"] ?? [];
     $RUN_STRING[] = $node["run"] ?? null;
 
-    unset($node, $NODE_NAME);
+    unset($node);
 } catch (Exception $e) {
-    $msg = "Invalid {$NODE_STRUCTURE_DEFINITIONS}: " . json_last_error_msg();
-
-    throw new RuntimeException($msg, 0, $e);
+    # Cannot set/combine the node structure.
+    throw new RuntimeException("Invalid {$NODE_STRUCTURE_DEFINITIONS}: " . json_last_error_msg(), 0, $e);
 }
 # node_structure end
 
+# skip_begin
 # Checking if we're currently within root node to include
 # all the base funcitonality.
 if (ROOT_PATH !== $LOCAL_PATH) {
@@ -346,9 +486,7 @@ if (!function_exists("f")) {
             }
         }
 
-        return $critical
-            ? die("Error: function f() cannot find file: {$fn}")
-            : null;
+        return $critical ? die("Error: function f() cannot find file: {$fn}") : null;
     }
     # f end
 
@@ -402,8 +540,7 @@ if (!function_exists("f")) {
 
         file_put_contents(
             $logFile,
-            json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) .
-                "\n",
+            json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n",
             FILE_APPEND,
         );
 
@@ -412,7 +549,7 @@ if (!function_exists("f")) {
     # r end
 
     # log_read_file begin
-    function logReadFile(string $path): array
+    function _node_log_read_file(string $path): array
     {
         if (!file_exists($path)) {
             return [];
@@ -441,7 +578,7 @@ if (!function_exists("f")) {
     # log_read_file end
 
     # log_read_files_array begin
-    function logReadFilesArray(array $arrayOfPathsToLogFiles): array
+    function _node_log_read_files_array(array $arrayOfPathsToLogFiles): array
     {
         if (empty($arrayOfPathsToLogFiles)) {
             return [];
@@ -449,14 +586,13 @@ if (!function_exists("f")) {
 
         $allLogs = [];
         foreach ($arrayOfPathsToLogFiles as $path) {
-            $allLogs = [...$allLogs, ...logReadFile($path)];
+            $allLogs = [...$allLogs, ..._node_log_read_file($path)];
         }
 
         // Sort by timestamp (newest first)
         usort(
             $allLogs,
-            fn($a, $b) => strtotime($b["timestamp"] ?? "1970-01-01") <=>
-                strtotime($a["timestamp"] ?? "1970-01-01"),
+            fn($a, $b) => strtotime($b["timestamp"] ?? "1970-01-01") <=> strtotime($a["timestamp"] ?? "1970-01-01"),
         );
 
         return $allLogs;
@@ -464,7 +600,7 @@ if (!function_exists("f")) {
     # log_read_files_array end
 
     # get_all_log_files begin
-    function getAllLogFiles(): array
+    function _node_get_all_log_files(): array
     {
         $logFiles = [];
 
@@ -515,8 +651,8 @@ if (!function_exists("f")) {
     }
     # get_all_log_files end
 
-    # walk_structure begin
-    function walkStructure(
+    # structure_walk begin
+    function _node_structure_walk(
         array $array,
         callable $callback,
         string $location = "",
@@ -537,22 +673,20 @@ if (!function_exists("f")) {
                     $sub = array_is_list($val) ? array_flip($val) : $val;
                     $srl = "{$location}{$name}" . D;
 
-                    $r = [
-                        ...$r,
-                        ...walkStructure($sub, $callback, $srl, $LOCAL_PATH),
-                    ];
+                    $r = [...$r, ..._node_structure_walk($sub, $callback, $srl, $LOCAL_PATH)];
                 }
             }
         }
         return array_filter($r, fn($x) => !empty($x));
     }
-    # walk_structure end
+    # structure_walk end
 
-    # deploy_structure begin
-    if (function_exists("deployStructure") === !1) {
-        function deployStructure(?array $NODE_STRUCTURE = null): void
+    # structure_deploy begin
+    # IMPORTANT! keep this check for ROOT_PATH node deployment.
+    if (function_exists("_node_structure_deploy") === !1) {
+        function _node_structure_deploy(?array $NODE_STRUCTURE = null): void
         {
-            walkStructure(
+            _node_structure_walk(
                 $NODE_STRUCTURE ?? NODE_STRUCTURE,
                 function (string $path): string {
                     if (!is_dir($path)) {
@@ -565,9 +699,9 @@ if (!function_exists("f")) {
                 ROOT_PATH,
             );
         }
-        deployStructure($NODE_STRUCTURE); # Only deploy for main entrypoint node.
+        _node_structure_deploy($NODE_STRUCTURE); # Only deploy for main entrypoint node.
     }
-    # deploy_structure end
+    # structure_deploy end
 
     # vendor_autoload begin
     /**
@@ -581,8 +715,8 @@ if (!function_exists("f")) {
     unset($LOCAL_VENDOR);
     # vendor_autoload end
 
-    # include_structure begin
-    function includeStructure(array $STRUCTURE, string $PATH, array $NODES): void
+    # structure_include begin
+    function _node_structure_include(array $STRUCTURE, string $PATH, array $NODES): void
     {
         $walk = function (string $path): string {
             if (strpos($path, "..") !== false) {
@@ -615,7 +749,7 @@ if (!function_exists("f")) {
         };
 
         # Walk local resources.
-        walkStructure($STRUCTURE, $walk, "", $PATH);
+        _node_structure_walk($STRUCTURE, $walk, "", $PATH);
 
         # Include requested nodes.
         if (is_array($NODES) && !empty($NODES)) {
@@ -623,10 +757,11 @@ if (!function_exists("f")) {
                 $path = $PATH . ".." . D . $node;
 
                 if ($check = realpath($path)) {
-                    $file = $check . D . "node.php";
-                    $size = filesize(__FILE__);
+                    $file = file_exists($check . D . "node.min.php")
+                        ? $check . D . "node.min.php"
+                        : $check . D . "node.php";
 
-                    if (file_exists($file) && filesize($file) === $size) {
+                    if (file_exists($file)) {
                         include_once $file;
                     } else {
                         # Impossible optimization:
@@ -635,26 +770,19 @@ if (!function_exists("f")) {
                         # 3. process as if in included node
                         # 4. continue within this oop
                         # instead we throw
-
-                        throw new Exception(
-                            "Node {$PATH} requires node that is different at: {$path}.\nFix this by updating php node git Node\ngit pull",
-                            0,
-                        );
+                        throw new Exception("Node {$PATH} requires node that does not exist at: {$path}.", 0);
                     }
                 } else {
                     # Targeted directory simply did not exist.
-                    throw new Exception(
-                        "Node {$PATH} requires node that does not exist at: {$path}.\nFix this path or remove {$node} from node.json",
-                        0,
-                    );
+                    throw new Exception("Node {$PATH} requires node at: {$path} which folder not found.", 0);
                 }
             }
         }
     }
-    # include_structure end
+    # structure_include end
 
-    # call_structure begin
-    function callStructure(): array
+    # structure_call begin
+    function _node_structure_call(): array
     {
         static $calls = [];
         static $structure = [];
@@ -663,7 +791,7 @@ if (!function_exists("f")) {
             return $structure;
         }
 
-        $structure = walkStructure(
+        $structure = _node_structure_walk(
             NODE_STRUCTURE,
             function (string $path, mixed $v) use (&$calls): array {
                 if (glob($path . D . "*", GLOB_ONLYDIR)) {
@@ -692,17 +820,12 @@ if (!function_exists("f")) {
         );
         return $structure;
     }
-    # call_structure end
+    # structure_call end
 
     # generate_boilerplate begin
-    function generateBoilerplate(
-        string $call,
-        string $name,
-        string $LOCAL_PATH,
-    ): array {
-        $call = str_starts_with($call, $LOCAL_PATH)
-            ? substr($call, strlen($LOCAL_PATH))
-            : $call;
+    function _node_generate_boilerplate(string $call, string $name, string $LOCAL_PATH): array
+    {
+        $call = str_starts_with($call, $LOCAL_PATH) ? substr($call, strlen($LOCAL_PATH)) : $call;
 
         $parts = explode(D, trim($call, D));
         $parts = array_filter($parts, fn($p) => !empty($p));
@@ -710,17 +833,13 @@ if (!function_exists("f")) {
         $leaf = end($parts); // e.g., Repository, Command, Controller
         $type = reset($parts); // e.g., Class, Interface, Function
 
-        $namespace = !empty($parts)
-            ? "namespace " . implode("\\", array_map("ucfirst", $parts)) . ";\n\n"
-            : "";
+        $namespace = !empty($parts) ? "namespace " . implode("\\", array_map("ucfirst", $parts)) . ";\n\n" : "";
 
         $keyword = match ($type) {
             "Interface" => "interface",
             "Trait" => "trait",
             "Function" => "function",
-            "Class" => in_array($parts[0] ?? "", ["Final", "Abstract"])
-                ? strtolower($parts[0]) . " class"
-                : "class",
+            "Class" => in_array($parts[0] ?? "", ["Final", "Abstract"]) ? strtolower($parts[0]) . " class" : "class",
             "Enum" => "enum",
             default => "class",
         };
@@ -736,8 +855,7 @@ if (!function_exists("f")) {
             "Interface" => "\n{\n\tpublic function execute(): void;\n}\n",
             "Function" => "\n{\n\t# TODO: Implement {$name} function\n}\n",
             "Trait" => "\n{\n\t# TODO: Implement trait methods\n}\n",
-            "Class"
-                => "\n{\n\tpublic function __construct()\n\t{\n\t\t# TODO: Initialize constructor\n\t}\n}\n",
+            "Class" => "\n{\n\tpublic function __construct()\n\t{\n\t\t# TODO: Initialize constructor\n\t}\n}\n",
             default => "\n{\n}\n",
         };
 
@@ -754,27 +872,26 @@ if (!function_exists("f")) {
     # generate_boilerplate end
 }
 node_subinclude:
+# skip_end
 
 # Include this node files and if $NODE_REQUIRE is not empty do subincludes.
-includeStructure($NODE_STRUCTURE, $LOCAL_PATH, $NODE_REQUIRE);
+_node_structure_include($NODE_STRUCTURE, $LOCAL_PATH, $NODE_REQUIRE);
 
 # Free memory
 unset($NODE_STRUCTURE, $NODE_REQUIRE);
+
+# skip_begin
+# Free memory after including of subnodes.
+unset($NODE_DEFAULT_STRUCTURES);
 
 # Check if node is the root node and load
 # all of the CLI only once at root node path.
 if ($LOCAL_PATH === ROOT_PATH) {
     if (!empty($RUN_STRING) && ($RUN_STRING = array_reverse($RUN_STRING))) {
         # execute_run begin
-        function executeRun(string $entry): void
+        function _node_execute_run(string $entry): void
         {
-            if (
-                preg_match(
-                    '/^([^:]+)::([^(]+)(?:\((.*)\))?$/',
-                    $entry,
-                    $matches,
-                )
-            ) {
+            if (preg_match('/^([^:]+)::([^(]+)(?:\((.*)\))?$/', $entry, $matches)) {
                 $class = $matches[1];
                 $method = $matches[2];
                 $argString = $matches[3] ?? "";
@@ -782,10 +899,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 if (class_exists($class) && method_exists($class, $method)) {
                     $arguments = [];
                     if ($argString) {
-                        $arguments = array_map(
-                            "trim",
-                            explode(",", $argString),
-                        );
+                        $arguments = array_map("trim", explode(",", $argString));
                         $arguments = array_map(function ($arg) {
                             if (preg_match('/^[\'"](.*)[\'"]$/', $arg, $m)) {
                                 return $m[1];
@@ -833,14 +947,12 @@ if ($LOCAL_PATH === ROOT_PATH) {
             r("Invalid entry point: {$entry}", "Error");
             http_response_code(500);
 
-            die(
-                "Application entry point configuration error [node.json -> run]."
-            );
+            die("Application entry point configuration error [node.json -> run].");
         }
         # execute_run end
 
         foreach (array_filter($RUN_STRING, fn($x) => !empty($x)) as $run) {
-            executeRun($run);
+            _node_execute_run($run);
         }
         unset($run);
     }
@@ -848,7 +960,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
     if (PHP_SAPI === "cli") {
         # cli_backup begin
-        function cli_backup(bool $tooltip = false, array $argv = []): string
+        function _node_cli_backup(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<name> Creates a backup zip of the node.";
@@ -885,10 +997,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $added = 0;
 
             $iterator = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator(
-                    ROOT_PATH,
-                    RecursiveDirectoryIterator::SKIP_DOTS,
-                ),
+                new RecursiveDirectoryIterator(ROOT_PATH, RecursiveDirectoryIterator::SKIP_DOTS),
                 RecursiveIteratorIterator::SELF_FIRST,
             );
 
@@ -919,9 +1028,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $zip->close();
             $size = filesize($zipName);
 
-            return "Backup created: {$zipName} ({$added} files, " .
-                number_format($size / 1024 / 1024, 2) .
-                " MB)\n";
+            return "Backup created: {$zipName} ({$added} files, " . number_format($size / 1024 / 1024, 2) . " MB)\n";
         }
 
         function createTarBackup(string $backupDir, string $backupName): string
@@ -941,11 +1048,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             chdir(ROOT_PATH);
 
             $cmd =
-                "tar -czf " .
-                escapeshellarg($tarName) .
-                " --exclude-from=" .
-                escapeshellarg($excludeFile) .
-                " . 2>&1";
+                "tar -czf " . escapeshellarg($tarName) . " --exclude-from=" . escapeshellarg($excludeFile) . " . 2>&1";
 
             exec($cmd, $output, $returnCode);
 
@@ -972,11 +1075,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
         function countFilesInTar(string $tarFile): int
         {
-            exec(
-                "tar -tzf " . escapeshellarg($tarFile) . " 2>/dev/null | wc -l",
-                $output,
-                $returnCode,
-            );
+            exec("tar -tzf " . escapeshellarg($tarFile) . " 2>/dev/null | wc -l", $output, $returnCode);
 
             if ($returnCode === 0 && isset($output[0]) && is_numeric($output[0])) {
                 return (int) $output[0];
@@ -985,7 +1084,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return 0;
         }
 
-        function test_cli_backup(): int
+        function test_node_cli_backup(): int
         {
             $backupDir = ROOT_PATH . "Backup" . D;
 
@@ -997,9 +1096,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return 2;
             }
 
-            $hasZip =
-                extension_loaded("zip") ||
-                (function_exists("class_exists") && class_exists("ZipArchive"));
+            $hasZip = extension_loaded("zip") || (function_exists("class_exists") && class_exists("ZipArchive"));
 
             if (!$hasZip) {
                 exec("which tar 2>/dev/null", $tarOutput, $tarCode);
@@ -1018,7 +1115,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 }
             }
 
-            $result = cli_backup(false, [$backupName]);
+            $result = _node_cli_backup(false, [$backupName]);
 
             if (strpos($result, "E: ") === 0) {
                 return 5;
@@ -1044,7 +1141,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_backup end
 
         # cli_ctx begin
-        function cli_ctx(bool $tooltip = false, array $argv = []): string
+        function _node_cli_ctx(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<class|function> Show complete context with dependencies";
@@ -1080,7 +1177,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                             // Check for function
                             if (!str_contains($target, "::") && !str_contains($target, "->")) {
-                                $funcContent = getFunctionBodyWithDocblock($content, $target);
+                                $funcContent = _node_get_function_body_with_docblock($content, $target);
                                 if ($funcContent) {
                                     return [
                                         "type" => "function",
@@ -1304,7 +1401,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     $files = glob($pattern);
                     foreach ($files as $file) {
                         $content = file_get_contents($file);
-                        $funcContent = getFunctionBodyWithDocblock($content, $functionName);
+                        $funcContent = _node_get_function_body_with_docblock($content, $functionName);
                         if ($funcContent) {
                             return [
                                 "file" => $file,
@@ -1318,7 +1415,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return null;
             }
 
-            $structure = [...[["", ROOT_PATH, ""]], ...callStructure()];
+            $structure = [...[["", ROOT_PATH, ""]], ..._node_structure_call()];
             $targetData = findTarget($target, $structure, $excludedDirs);
 
             if (!$targetData) {
@@ -1394,8 +1491,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             // Add ranking - rank the FILE, not the class as function
-            $rankOutput = cli_rank(false, [$targetData["file"]]);
-            $resourcesOutput = ""; //cli_list(false, []);
+            $rankOutput = _node_cli_rank(false, [$targetData["file"]]);
+            $resourcesOutput = ""; //_node_cli_list(false, []);
 
             $rankLines = explode("\n", "{$rankOutput}\n{$resourcesOutput}");
             $output .= "# ranking analysis of: {$targetData["file"]} \n#\n";
@@ -1408,14 +1505,14 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_ctx end
 
         # cli_deprecate begin
-        function cli_deprecate(bool $tooltip = false, array $argv = []): string
+        function _node_cli_deprecate(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<resource> <name> Makes a copy of deprecated code.";
             }
 
             if (($call = $argv[0] ?? null) && ($name = $argv[1] ?? null)) {
-                foreach (callStructure() as $c) {
+                foreach (_node_structure_call() as $c) {
                     if ($c[0] === $call) {
                         $path = $c[1];
 
@@ -1462,15 +1559,15 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return "E: Missing arguments. Usage: deprecate <resource> <name>\n";
         }
 
-        function test_cli_deprecate(): int
+        function test_node_cli_deprecate(): int
         {
             $r = "State";
             $n = "SomeName";
-            if (str_starts_with(cli_new(false, [$r, $n]), "E:")) {
+            if (str_starts_with(_node_cli_new(false, [$r, $n]), "E:")) {
                 return 1;
             }
 
-            $structures = callStructure();
+            $structures = _node_structure_call();
             $path = array_first(array_filter($structures, fn($x) => $x[0] == $r))[1];
 
             $nFile = "{$path}" . D . "{$n}{$r}.php";
@@ -1478,7 +1575,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return 2;
             }
 
-            if (str_starts_with(cli_deprecate(false, [$r, $n]), "E:")) {
+            if (str_starts_with(_node_cli_deprecate(false, [$r, $n]), "E:")) {
                 return 3;
             }
 
@@ -1502,7 +1599,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_deprecate end
 
         # cli_dump begin
-        function cli_dump(bool $tooltip = false, array $argv = []): string
+        function _node_cli_dump(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<var> Dumps a variable's value.";
@@ -1528,7 +1625,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_dump end
 
         # cli_env begin
-        function cli_env(bool $tooltip = false, array $argv = []): string
+        function _node_cli_env(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<action> <key|key = value> Actions: list, set, get";
@@ -1606,7 +1703,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
         }
 
-        function test_cli_env(): int
+        function test_node_cli_env(): int
         {
             $envFile = ROOT_PATH . ".env";
             $backup = null;
@@ -1617,12 +1714,12 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             file_put_contents($envFile, "# Environment variables\nTEST_KEY=test_value\nANOTHER_KEY=another_value\n");
 
-            if (str_starts_with(cli_env(true, []), "<action>") === false) {
+            if (str_starts_with(_node_cli_env(true, []), "<action>") === false) {
                 file_put_contents($envFile, $backup);
                 return 1;
             }
 
-            $listResult = cli_env(false, ["list"]);
+            $listResult = _node_cli_env(false, ["list"]);
             if (
                 strpos($listResult, "TEST_KEY=test_value") === false ||
                 strpos($listResult, "ANOTHER_KEY=another_value") === false
@@ -1631,55 +1728,55 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return 2;
             }
 
-            $setResult = cli_env(false, ["set", "TEST_KEY=new_value"]);
+            $setResult = _node_cli_env(false, ["set", "TEST_KEY=new_value"]);
             if (strpos($setResult, "Set TEST_KEY=new_value") === false) {
                 file_put_contents($envFile, $backup);
                 return 3;
             }
 
-            $getResult = cli_env(false, ["get", "TEST_KEY"]);
+            $getResult = _node_cli_env(false, ["get", "TEST_KEY"]);
             if ($getResult !== "TEST_KEY=new_value\n") {
                 file_put_contents($envFile, $backup);
                 return 4;
             }
 
-            $setNewResult = cli_env(false, ["set", "NEW_KEY=new_value_123"]);
+            $setNewResult = _node_cli_env(false, ["set", "NEW_KEY=new_value_123"]);
             if (strpos($setNewResult, "Set NEW_KEY=new_value_123") === false) {
                 file_put_contents($envFile, $backup);
                 return 5;
             }
 
-            $listResult2 = cli_env(false, ["list"]);
+            $listResult2 = _node_cli_env(false, ["list"]);
             if (strpos($listResult2, "NEW_KEY=new_value_123") === false) {
                 file_put_contents($envFile, $backup);
                 return 6;
             }
 
-            $missingKeyResult = cli_env(false, ["get", "MISSING_KEY"]);
+            $missingKeyResult = _node_cli_env(false, ["get", "MISSING_KEY"]);
             if (strpos($missingKeyResult, "E: Key 'MISSING_KEY' not found") === false) {
                 file_put_contents($envFile, $backup);
                 return 7;
             }
 
-            $invalidSetResult = cli_env(false, ["set"]);
+            $invalidSetResult = _node_cli_env(false, ["set"]);
             if (strpos($invalidSetResult, "E: Usage: env set KEY = VALUE") === false) {
                 file_put_contents($envFile, $backup);
                 return 8;
             }
 
-            $invalidFormatResult = cli_env(false, ["set", "NO_EQUALS_SIGN"]);
+            $invalidFormatResult = _node_cli_env(false, ["set", "NO_EQUALS_SIGN"]);
             if (strpos($invalidFormatResult, "E: Invalid format. Use KEY = VALUE") === false) {
                 file_put_contents($envFile, $backup);
                 return 9;
             }
 
-            $invalidGetResult = cli_env(false, ["get"]);
+            $invalidGetResult = _node_cli_env(false, ["get"]);
             if (strpos($invalidGetResult, "E: Usage: env get KEY") === false) {
                 file_put_contents($envFile, $backup);
                 return 10;
             }
 
-            $unknownActionResult = cli_env(false, ["unknown"]);
+            $unknownActionResult = _node_cli_env(false, ["unknown"]);
             if (strpos($unknownActionResult, "E: Unknown action. Available: list, set, get") === false) {
                 file_put_contents($envFile, $backup);
                 return 11;
@@ -1696,7 +1793,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_env end
 
         # cli_git begin
-        function cli_git(bool $tooltip = false, array $argv = []): string
+        function _node_cli_git(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<Node|Project> Toggle git repository target.";
@@ -1711,9 +1808,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             $gitIgnore = ROOT_PATH . ".gitignore";
 
-            $isNodeMode =
-                file_exists($gitIgnore) &&
-                strpos(trim(file_get_contents($gitIgnore)), "!node.php");
+            $isNodeMode = file_exists($gitIgnore) && strpos(trim(file_get_contents($gitIgnore)), "!node.php");
 
             if (!$mode) {
                 return "Git targeting " . ($isNodeMode ? "Node" : "Project") . "\n";
@@ -1737,9 +1832,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             $r =
                 "Preparing to target Git...\n" .
-                ($flagMoveToSource
-                    ? "Warning: {$sourceDir} contains files, skipping root->source moves.\n\n"
-                    : "\n");
+                ($flagMoveToSource ? "Warning: {$sourceDir} contains files, skipping root->source moves.\n\n" : "\n");
 
             foreach ([".git", "README.md", ".gitignore"] as $file) {
                 $rootFile = ROOT_PATH . $file;
@@ -1764,7 +1857,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_git end
 
         # cli_help begin
-        function cli_help(bool $tooltip = false, array $argv = []): string
+        function _node_cli_help(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<descriptions yes|no> Shows all commands";
@@ -1772,8 +1865,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             $items = [];
             foreach (get_defined_functions()["user"] as $fn) {
-                if (str_starts_with($fn, "cli_")) {
-                    $name = substr($fn, 4);
+                if (str_starts_with($fn, "_node_cli_")) {
+                    $name = substr($fn, 10);
                     if (empty($argv[0])) {
                         $tooltip = explode(">", $fn(true, []));
                         array_pop($tooltip);
@@ -1804,10 +1897,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                 if ($left) {
                     $line .= "{$left[0]} {$left[1]}";
-                    $line .= str_repeat(
-                        " ",
-                        $maxlen - strlen("{$left[0]} {$left[1]}") + 2,
-                    );
+                    $line .= str_repeat(" ", $maxlen - strlen("{$left[0]} {$left[1]}") + 2);
                 }
 
                 if ($right) {
@@ -1831,7 +1921,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_help end
 
         # cli_info begin
-        function cli_info(bool $tooltip = false, array $argv = []): string
+        function _node_cli_info(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<void> Shows node system information.";
@@ -1843,12 +1933,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $info[] = "PHP: " . PHP_VERSION . " (" . PHP_SAPI . ")";
             $info[] = "Structure: " . count(NODE_STRUCTURE) . " categories";
 
-            $loaded =
-                count(get_declared_classes()) -
-                count(get_declared_interfaces());
+            $loaded = count(get_declared_classes()) - count(get_declared_interfaces());
             $info[] = "Loaded: {$loaded} classes";
 
-            $logFiles = getAllLogFiles();
+            $logFiles = _node_get_all_log_files();
             $info[] = "Logs: " . count($logFiles) . " files";
 
             return implode("\n", $info) . "\n";
@@ -1856,7 +1944,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_info end
 
         # cli_like begin
-        function cli_like(bool $tooltip = false, array $argv = []): string
+        function _node_cli_like(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<term> Searches resources by name or path.";
@@ -1867,10 +1955,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $matches = [];
                 $seen = [];
 
-                foreach (callStructure() as $c) {
-                    $relPath = str_starts_with($c[1], ROOT_PATH)
-                        ? substr($c[1], strlen(ROOT_PATH))
-                        : $c[1];
+                foreach (_node_structure_call() as $c) {
+                    $relPath = str_starts_with($c[1], ROOT_PATH) ? substr($c[1], strlen(ROOT_PATH)) : $c[1];
 
                     if (strpos(strtolower($relPath), $search) !== false) {
                         $key = "resource:{$relPath}";
@@ -1905,9 +1991,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                             $modifiers = [];
                             $reflection->isAbstract() && ($modifiers[] = "abstract");
                             $reflection->isFinal() && ($modifiers[] = "final");
-                            $mod = $modifiers
-                                ? "[" . implode(" ", $modifiers) . "] "
-                                : "";
+                            $mod = $modifiers ? "[" . implode(" ", $modifiers) . "] " : "";
                             $matches[] = "[class:{$source}] {$mod}{$class}";
                             $seen[$key] = true;
                         }
@@ -1946,9 +2030,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         if (strpos(strtolower($name), $search) !== false) {
                             $key = "constant:{$name}";
                             if (!isset($seen[$key])) {
-                                $valuePreview = is_scalar($value)
-                                    ? (string) $value
-                                    : gettype($value);
+                                $valuePreview = is_scalar($value) ? (string) $value : gettype($value);
 
                                 $matches[] = "[constant:{$scope}] {$name} = \"{$valuePreview}\"";
                                 $seen[$key] = true;
@@ -1970,20 +2052,17 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_like end
 
         # cli_list begin
-        function cli_list(bool $tooltip = false, array $argv = []): string
+        function _node_cli_list(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<resource> Lists all existing resources of type.";
             }
 
             if ($call = $argv[0] ?? null) {
-                foreach (callStructure() as $c) {
+                foreach (_node_structure_call() as $c) {
                     if ($c[0] === $call) {
                         if ($resources = glob($c[1] . D . "*.*")) {
-                            $r =
-                                "Found (" .
-                                count($resources) .
-                                ") resources:\n";
+                            $r = "Found (" . count($resources) . ") resources:\n";
                             foreach ($resources as $fp) {
                                 $mtime = date("Y-m-d H:i:s", filemtime($fp));
                                 $fsize = number_format(filesize($fp));
@@ -1998,7 +2077,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             $r = "Available resources:\n";
-            foreach (callStructure() as $resource) {
+            foreach (_node_structure_call() as $resource) {
                 $rp = str_replace(ROOT_PATH, "", $resource[1]);
                 $r .= "<{$resource[0]}> {$resource[2]} ({$rp}) \n";
             }
@@ -2008,7 +2087,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_list end
 
         # cli_log begin
-        function cli_log(bool $tooltip = false, array $argv = []): string
+        function _node_cli_log(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<action> <options> Actions: list, show, clear, tail";
@@ -2018,17 +2097,17 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $options = array_slice($argv, 1);
 
             return match ($action) {
-                "list" => listLogs($options),
-                "show" => showLogs($options),
-                "clear" => clearLogs($options),
-                "tail" => tailLogs($options),
+                "list" => _node_list_logs($options),
+                "show" => _node_show_logs($options),
+                "clear" => _node_clear_logs($options),
+                "tail" => _node_tail_logs($options),
                 default => "E: Unknown action. Available: list, show, clear, tail\n",
             };
         }
 
-        function listLogs(array $options): string
+        function _node_list_logs(array $options): string
         {
-            $logFiles = getAllLogFiles();
+            $logFiles = _node_get_all_log_files();
             $output = "Available Log Files:\n\n";
 
             $totalSize = 0;
@@ -2040,13 +2119,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $size = number_format($log["size"] / 1024, 2) . " KB";
                 $modified = date("Y-m-d H:i:s", $log["modified"]);
                 $type = str_pad($log["type"], 10);
-                $output .= sprintf(
-                    "[%s] %-60s %12s %s\n",
-                    $type,
-                    $log["path"],
-                    $size,
-                    $modified,
-                );
+                $output .= sprintf("[%s] %-60s %12s %s\n", $type, $log["path"], $size, $modified);
                 $totalSize += $log["size"];
             }
 
@@ -2056,11 +2129,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return $output;
         }
 
-        function showLogs(array $options): string
+        function _node_show_logs(array $options): string
         {
             if (empty($options)) {
-                return listLogs([]) .
-                    "\nE: Specify log file or type. Usage: log show <file|type> [limit]\n";
+                return _node_list_logs([]) . "\nE: Specify log file or type. Usage: log show <file|type> [limit]\n";
             }
 
             $target = $options[0];
@@ -2071,7 +2143,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             $limit = $options[1] ?? 50;
 
-            $logFiles = getAllLogFiles();
+            $logFiles = _node_get_all_log_files();
             $selectedLogs = [];
 
             foreach ($logFiles as $log) {
@@ -2092,7 +2164,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return "E: No logs found matching '{$target}'\n";
             }
 
-            $allEntries = logReadFilesArray($selectedLogs);
+            $allEntries = _node_log_read_files_array($selectedLogs);
             $c = count($allEntries);
             $limitedEntries = array_slice($allEntries, 0, $limit);
 
@@ -2127,15 +2199,14 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return $output;
         }
 
-        function clearLogs(array $options): string
+        function _node_clear_logs(array $options): string
         {
             if (empty($options)) {
-                return listLogs([]) .
-                    "\nE: Specify what to clear. Usage: log clear <file|type|all>\n";
+                return _node_list_logs([]) . "\nE: Specify what to clear. Usage: log clear <file|type|all>\n";
             }
 
             $target = $options[0];
-            $logFiles = getAllLogFiles();
+            $logFiles = _node_get_all_log_files();
             $cleared = 0;
             $totalSize = 0;
 
@@ -2149,9 +2220,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         }
                     }
                 }
-                return "Cleared {$cleared} log files, freed " .
-                    number_format($totalSize / (1024 * 1024), 2) .
-                    " MB\n";
+                return "Cleared {$cleared} log files, freed " . number_format($totalSize / (1024 * 1024), 2) . " MB\n";
             }
 
             foreach ($logFiles as $log) {
@@ -2176,11 +2245,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return "No logs cleared. Check file permissions or path.\n";
         }
 
-        function tailLogs(array $options): string
+        function _node_tail_logs(array $options): string
         {
             if (empty($options)) {
-                return listLogs([]) .
-                    "\nE: Specify log file. Usage: log tail <file> [lines]\n";
+                return _node_list_logs([]) . "\nE: Specify log file. Usage: log tail <file> [lines]\n";
             }
 
             $file = $options[0];
@@ -2192,13 +2260,12 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             $content = shell_exec("tail -n {$lines} " . escapeshellarg($file));
 
-            return "Last {$lines} lines of {$file}:\n\n" .
-                ($content ?: "No content or error reading file\n");
+            return "Last {$lines} lines of {$file}:\n\n" . ($content ?: "No content or error reading file\n");
         }
         # cli_log end
 
         # cli_make begin
-        function cli_make(bool $tooltip = false, array $argv = []): string
+        function _node_cli_make(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<gitrepo> <foldername> Creates new node from git.";
@@ -2217,7 +2284,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return "E: Directory already exists: {$newNodePath}\n";
             }
 
-            $gitUrls = getGitUrls();
+            $gitUrls = _node_get_git_urls();
             if (!$gitUrls["node"]) {
                 return "E: Cannot determine node git URL\n";
             }
@@ -2243,9 +2310,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 exec("git clone {$nodeGitUrl} . 2>&1", $nodeOutput, $nodeCode);
 
                 if ($nodeCode !== 0) {
-                    throw new Exception(
-                        "Failed to clone node: " . implode("\n", $nodeOutput),
-                    );
+                    throw new Exception("Failed to clone node: " . implode("\n", $nodeOutput));
                 }
 
                 $output .= "✓ Node cloned\n";
@@ -2254,9 +2319,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 exec("git clone {$projectGitUrl} . 2>&1", $projectOutput, $projectCode);
 
                 if ($projectCode !== 0) {
-                    throw new Exception(
-                        "Failed to clone project: " . implode("\n", $projectOutput),
-                    );
+                    throw new Exception("Failed to clone project: " . implode("\n", $projectOutput));
                 }
 
                 $output .= "✓ Project cloned\n";
@@ -2306,10 +2369,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                 file_put_contents(
                     "{$newNodePath}node.json",
-                    json_encode(
-                        $nodeConfig,
-                        JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES,
-                    ),
+                    json_encode($nodeConfig, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
                 );
 
                 $output .= "✓ node.json created\n";
@@ -2330,36 +2390,30 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return $output;
         }
 
-        function getGitUrls(): array
+        function _node_get_git_urls(): array
         {
             $result = ["node" => "", "base" => null];
 
             $gConf = ROOT_PATH . ".git" . D . "config";
             if (file_exists($gConf)) {
                 $cfg = file_get_contents($gConf);
-                $result["node"] = preg_match("/url\s*=\s*(.+)/", $cfg, $mcs)
-                    ? trim($mcs[1])
-                    : null;
+                $result["node"] = preg_match("/url\s*=\s*(.+)/", $cfg, $mcs) ? trim($mcs[1]) : null;
             } else {
                 $nConf = ROOT_PATH . "Git" . D . "Node" . D . ".git" . D . "config";
                 if (file_exists($nConf)) {
                     $cfg = file_get_contents($nConf);
-                    $result["node"] = preg_match("/url\s*=\s*(.+)/", $cfg, $mcs)
-                        ? trim($mcs[1])
-                        : null;
+                    $result["node"] = preg_match("/url\s*=\s*(.+)/", $cfg, $mcs) ? trim($mcs[1]) : null;
                 }
             }
 
-            $result["base"] = !empty($result["node"])
-                ? str_replace("Kolostov/NodePHP.git", "", $result["node"])
-                : null;
+            $result["base"] = !empty($result["node"]) ? str_replace("Kolostov/NodePHP.git", "", $result["node"]) : null;
 
             return $result;
         }
         # cli_make end
 
         # cli_migrate begin
-        function cli_migrate(bool $tooltip = false, array $argv = []): string
+        function _node_cli_migrate(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<action> <target> A: up, down, status, create; T: name";
@@ -2408,30 +2462,23 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
                         foreach ($migrations as $migration) {
                             $fileName = basename($migration, ".php");
-                            $status = in_array($fileName, $tracking[$type] ?? [])
-                                ? "APPLIED"
-                                : "PENDING";
+                            $status = in_array($fileName, $tracking[$type] ?? []) ? "APPLIED" : "PENDING";
                             $output .= "  {$fileName}: {$status}\n";
                         }
                     }
                     return $output;
 
                 case "up":
-                    return migrateUp($tracking, $trackingFile, $migrationPath, $target);
+                    return _node_migrate_up($tracking, $trackingFile, $migrationPath, $target);
 
                 case "down":
-                    return migrateDown(
-                        $tracking,
-                        $trackingFile,
-                        $migrationPath,
-                        $target,
-                    );
+                    return _node_migrate_down($tracking, $trackingFile, $migrationPath, $target);
 
                 case "create":
                     if (!$target) {
                         return "E: Missing migration name. Usage: migrate create <name>\n";
                     }
-                    return createMigration($migrationPath, $target);
+                    return _node_create_migration($migrationPath, $target);
 
                 default:
                     return "E: Unknown action. Available: status, up, down, create\n";
@@ -2439,12 +2486,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
         }
 
         # migrate_up begin
-        function migrateUp(
-            array $tracking,
-            string $trackingFile,
-            string $migrationPath,
-            string $target,
-        ): string {
+        function _node_migrate_up(array $tracking, string $trackingFile, string $migrationPath, string $target): string
+        {
             $output = "Running migrations up...\n";
             $applied = [];
 
@@ -2469,11 +2512,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         if ($type === "PHP") {
                             include_once $migration;
 
-                            $className = str_replace(
-                                ["-", "_"],
-                                "",
-                                ucwords($fileName, "-_"),
-                            );
+                            $className = str_replace(["-", "_"], "", ucwords($fileName, "-_"));
                             if (class_exists($className)) {
                                 $instance = new $className();
                                 if (method_exists($instance, "up")) {
@@ -2496,10 +2535,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             if (!empty($applied)) {
-                file_put_contents(
-                    $trackingFile,
-                    json_encode($tracking, JSON_PRETTY_PRINT),
-                );
+                file_put_contents($trackingFile, json_encode($tracking, JSON_PRETTY_PRINT));
                 $output .= "\nApplied migrations: " . implode(", ", $applied) . "\n";
             } else {
                 $output .= "\nNo new migrations to apply.\n";
@@ -2510,7 +2546,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # migrate_up end
 
         # migrate_down begin
-        function migrateDown(
+        function _node_migrate_down(
             array $tracking,
             string $trackingFile,
             string $migrationPath,
@@ -2531,8 +2567,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         continue;
                     }
 
-                    $migrationFile =
-                        $migrationPath . D . $type . D . $fileName . ".php";
+                    $migrationFile = $migrationPath . D . $type . D . $fileName . ".php";
 
                     if (!file_exists($migrationFile)) {
                         continue;
@@ -2544,11 +2579,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         if ($type === "PHP") {
                             include_once $migrationFile;
 
-                            $className = str_replace(
-                                ["-", "_"],
-                                "",
-                                ucwords($fileName, "-_"),
-                            );
+                            $className = str_replace(["-", "_"], "", ucwords($fileName, "-_"));
                             if (class_exists($className)) {
                                 $instance = new $className();
                                 if (method_exists($instance, "down")) {
@@ -2580,12 +2611,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             if (!empty($rolledBack)) {
-                file_put_contents(
-                    $trackingFile,
-                    json_encode($tracking, JSON_PRETTY_PRINT),
-                );
-                $output .=
-                    "\nRolled back migrations: " . implode(", ", $rolledBack) . "\n";
+                file_put_contents($trackingFile, json_encode($tracking, JSON_PRETTY_PRINT));
+                $output .= "\nRolled back migrations: " . implode(", ", $rolledBack) . "\n";
             } else {
                 $output .= "\nNo migrations to roll back.\n";
             }
@@ -2594,7 +2621,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         }
         # migrate_down end
 
-        function createMigration(string $migrationPath, string $name): string
+        function _node_create_migration(string $migrationPath, string $name): string
         {
             $timestamp = date("Ymd_His");
             $safeName = preg_replace("/[^a-zA-Z0-9_]/", "_", $name);
@@ -2642,14 +2669,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $sqlFile = $migrationDir . D . $fileName . ".sql";
                 $downSqlFile = $migrationDir . D . $fileName . ".down.sql";
 
-                file_put_contents(
-                    $sqlFile,
-                    "-- SQL migration: {$name}\n-- Up migration\n",
-                );
-                file_put_contents(
-                    $downSqlFile,
-                    "-- SQL migration: {$name}\n-- Down migration (rollback)\n",
-                );
+                file_put_contents($sqlFile, "-- SQL migration: {$name}\n-- Up migration\n");
+                file_put_contents($downSqlFile, "-- SQL migration: {$name}\n-- Down migration (rollback)\n");
 
                 $content = <<<PHP
                 <?php declare(strict_types=1);
@@ -2676,7 +2697,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
         }
 
-        function test_cli_migrate(): int
+        function test_node_cli_migrate(): int
         {
             $migrationPath = ROOT_PATH . "Migration";
             $trackingFile = ROOT_PATH . ".migrations.json";
@@ -2700,54 +2721,49 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 mkdir($migrationPath, 0777, true);
             }
 
-            file_put_contents(
-                $trackingFile,
-                json_encode(["SQL" => [], "PHP" => []], JSON_PRETTY_PRINT),
-            );
+            file_put_contents($trackingFile, json_encode(["SQL" => [], "PHP" => []], JSON_PRETTY_PRINT));
 
-            if (str_starts_with(cli_migrate(true, []), "<action>") === false) {
-                restoreMigrationState($backupTracking, $backupMigrationDir);
+            if (str_starts_with(_node_cli_migrate(true, []), "<action>") === false) {
+                _node_restore_migration_state($backupTracking, $backupMigrationDir);
                 return 1;
             }
 
-            $statusResult = cli_migrate(false, ["status"]);
+            $statusResult = _node_cli_migrate(false, ["status"]);
             if (strpos($statusResult, "Migration Status:") === false) {
-                restoreMigrationState($backupTracking, $backupMigrationDir);
+                _node_restore_migration_state($backupTracking, $backupMigrationDir);
                 return 2;
             }
 
-            $unknownActionResult = cli_migrate(false, ["unknown_action"]);
+            $unknownActionResult = _node_cli_migrate(false, ["unknown_action"]);
             if (strpos($unknownActionResult, "E: Unknown action") === false) {
-                restoreMigrationState($backupTracking, $backupMigrationDir);
+                _node_restore_migration_state($backupTracking, $backupMigrationDir);
                 return 3;
             }
 
-            $upResult = cli_migrate(false, ["up"]);
+            $upResult = _node_cli_migrate(false, ["up"]);
             if (strpos($upResult, "No new migrations to apply") === false) {
-                restoreMigrationState($backupTracking, $backupMigrationDir);
+                _node_restore_migration_state($backupTracking, $backupMigrationDir);
                 return 4;
             }
 
-            $downResult = cli_migrate(false, ["down"]);
+            $downResult = _node_cli_migrate(false, ["down"]);
             if (strpos($downResult, "No migrations to roll back") === false) {
-                restoreMigrationState($backupTracking, $backupMigrationDir);
+                _node_restore_migration_state($backupTracking, $backupMigrationDir);
                 return 5;
             }
 
-            $createMissingNameResult = cli_migrate(false, ["create"]);
-            if (
-                strpos($createMissingNameResult, "E: Missing migration name") === false
-            ) {
-                restoreMigrationState($backupTracking, $backupMigrationDir);
+            $createMissingNameResult = _node_cli_migrate(false, ["create"]);
+            if (strpos($createMissingNameResult, "E: Missing migration name") === false) {
+                _node_restore_migration_state($backupTracking, $backupMigrationDir);
                 return 6;
             }
 
-            restoreMigrationState($backupTracking, $backupMigrationDir);
+            _node_restore_migration_state($backupTracking, $backupMigrationDir);
 
             return 0;
         }
 
-        function restoreMigrationState($backupTracking, $backupMigrationDir): void
+        function _node_restore_migration_state($backupTracking, $backupMigrationDir): void
         {
             $migrationPath = ROOT_PATH . "Migration";
             $trackingFile = ROOT_PATH . ".migrations.json";
@@ -2791,29 +2807,25 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_migrate end
 
         # cli_new begin
-        function cli_new(bool $tooltip = false, array $argv = []): string
+        function _node_cli_new(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<resource> <name> Creates new resource from boilerplate.";
             }
 
             if (($call = $argv[0] ?? null) && ($name = $argv[1] ?? null)) {
-                foreach (callStructure() as $c) {
+                foreach (_node_structure_call() as $c) {
                     if ($c[0] === $call) {
                         if (strpos($c[1], "Migration") !== false) {
                             $timestamp = date("Ymd_His");
                             $safeName = preg_replace("/[^a-zA-Z0-9_]/", "_", $name);
                             $migrationName = "{$timestamp}_{$safeName}";
 
-                            $fc = generateBoilerplate($c[1], $safeName, ROOT_PATH);
+                            $fc = _node_generate_boilerplate($c[1], $safeName, ROOT_PATH);
                             $fn = $c[1] . D . "{$migrationName}{$fc[1]}.php";
 
                             if (strpos($c[1], "Migration/PHP") !== false) {
-                                $className = str_replace(
-                                    ["-", "_"],
-                                    "",
-                                    ucwords($safeName, "-_"),
-                                );
+                                $className = str_replace(["-", "_"], "", ucwords($safeName, "-_"));
                                 $content = <<<PHP
                                 <?php declare(strict_types=1);
 
@@ -2849,7 +2861,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                             }
                         } else {
                             // Regular resource creation
-                            $fc = generateBoilerplate($c[1], $name, ROOT_PATH);
+                            $fc = _node_generate_boilerplate($c[1], $name, ROOT_PATH);
                             $fn = $c[1] . D . "{$name}{$fc[1]}.php";
                             if (!file_exists($fn)) {
                                 $size = file_put_contents($fn, $fc[0]);
@@ -2865,12 +2877,12 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return "E: Missing argument(s), call new <resource> <name>\n";
         }
 
-        function test_cli_new(): int
+        function test_node_cli_new(): int
         {
             $r = "State";
             $n = "MyTestState";
 
-            $result = cli_new(false, [$r, $n]);
+            $result = _node_cli_new(false, [$r, $n]);
 
             if (str_starts_with($result, "E:")) {
                 return 1;
@@ -2880,7 +2892,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return 2;
             }
 
-            $structures = callStructure();
+            $structures = _node_structure_call();
             $path = null;
             foreach ($structures as $structure) {
                 if ($structure[0] === $r) {
@@ -2915,34 +2927,28 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return 7;
             }
 
-            $duplicateResult = cli_new(false, [$r, $n]);
-            if (
-                !str_starts_with($duplicateResult, "E: File") ||
-                strpos($duplicateResult, "already exists") === false
-            ) {
+            $duplicateResult = _node_cli_new(false, [$r, $n]);
+            if (!str_starts_with($duplicateResult, "E: File") || strpos($duplicateResult, "already exists") === false) {
                 unlink($expectedFile);
                 return 8;
             }
 
-            $missingArgsResult = cli_new(false, []);
+            $missingArgsResult = _node_cli_new(false, []);
             if (!str_starts_with($missingArgsResult, "E: Missing argument")) {
                 unlink($expectedFile);
                 return 9;
             }
 
-            $invalidResourceResult = cli_new(false, ["InvalidResourceName", $n]);
+            $invalidResourceResult = _node_cli_new(false, ["InvalidResourceName", $n]);
             if (
-                !str_starts_with(
-                    $invalidResourceResult,
-                    "E: Could not create resource",
-                ) ||
+                !str_starts_with($invalidResourceResult, "E: Could not create resource") ||
                 strpos($invalidResourceResult, "invalid resource name") === false
             ) {
                 unlink($expectedFile);
                 return 10;
             }
 
-            $tooltip = cli_new(true, []);
+            $tooltip = _node_cli_new(true, []);
             if (strpos($tooltip, "<resource> <name>") === false) {
                 unlink($expectedFile);
                 return 11;
@@ -2955,7 +2961,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_new end
 
         # cli_rank begin
-        function cli_rank(bool $tooltip = false, array $argv = []): string
+        function _node_cli_rank(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<file> <?func> Analyze and rank file contents";
@@ -2967,13 +2973,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             $src = file_get_contents($file);
-            $fns = _file_functions($src);
+            $fns = _node_file_functions($src);
 
             if (empty($fns)) {
                 return "No functions found in file\n";
             }
 
-            $fileMetrics = computeFileMetrics($src);
+            $fileMetrics = _node_compute_file_metrics($src);
             $fileTotal = array_sum($fileMetrics);
 
             $targetFn = $argv[1] ?? null;
@@ -2987,27 +2993,27 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             $analysis = [];
             foreach ($fns as $fn) {
-                $body = getFunctionBodyWithDocblock($src, $fn);
+                $body = _node_get_function_body_with_docblock($src, $fn);
                 $rawScore = 0.0;
                 $functionMetrics = [];
 
-                $functionMetrics["call"] = $value = metricCalls($src, $fn, $body);
+                $functionMetrics["call"] = $value = _node_metric_calls($src, $fn, $body);
                 $rawScore += $value;
-                $functionMetrics["docs"] = $value = metricDocblock($fn, $body);
+                $functionMetrics["docs"] = $value = _node_metric_dockblock($fn, $body);
                 $rawScore += $value;
-                $functionMetrics["ln"] = $value = metricLines($fn, $body);
+                $functionMetrics["ln"] = $value = _node_metric_lines($fn, $body);
                 $rawScore += $value;
-                $functionMetrics["args"] = $value = metricParameters($fn, $body);
+                $functionMetrics["args"] = $value = _node_metric_parameters($fn, $body);
                 $rawScore += $value;
-                $functionMetrics["branch"] = $value = metricBranching($fn, $body);
+                $functionMetrics["branch"] = $value = _node_metric_branching($fn, $body);
                 $rawScore += $value;
-                $functionMetrics["divisions"] = $value = metricDivision($fn, $body);
+                $functionMetrics["divisions"] = $value = _node_metric_division($fn, $body);
                 $rawScore += $value;
-                $functionMetrics["string_ops"] = $value = metricStringOps($fn, $body);
+                $functionMetrics["string_ops"] = $value = _node_metric_string_operations($fn, $body);
                 $rawScore += $value;
-                $functionMetrics["builtin"] = $value = metricBuiltinUsage($fn, $body);
+                $functionMetrics["builtin"] = $value = _node_metric_builtin_usage($fn, $body);
                 $rawScore += $value;
-                $functionMetrics["ifelse"] = $value = metricIfElseBalance($fn, $body);
+                $functionMetrics["ifelse"] = $value = _node_metric_if_else_balance($fn, $body);
                 $rawScore += $value;
 
                 $analysis[$fn] = [
@@ -3068,7 +3074,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     "named_arguments" => "Use named arguments for clarity when calling functions with many parameters.",
                     "attributes" => "Use PHP 8 attributes for metadata instead of docblock annotations.",
                     "enums" => "Use enums for type-safe constant sets (PHP 8.1+).",
-                    "readonly_properties" => "Mark properties as 'readonly' when they shouldn't change after construction.",
+                    "readonly_properties" =>
+                        "Mark properties as 'readonly' when they shouldn't change after construction.",
                     "never_return_type" => "Use ': never' return type for functions that always exit/throw.",
                     "array_is_list" => "Use array_is_list() instead of manual array key checking.",
                     "first_class_callable" => "Use first-class callables (fn(...)) for cleaner callback syntax.",
@@ -3078,7 +3085,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     "cyclomatic_complexity" => "Reduce branching logic. Extract complex conditions into methods.",
                     "dependency_inversion" => "Depend on abstractions (interfaces) not concrete implementations.",
                     "no_magic_numbers" => "Replace magic numbers with named constants or configuration.",
-                    "no_global_functions" => "Wrap global functions in class methods for better testability/encapsulation.",
+                    "no_global_functions" =>
+                        "Wrap global functions in class methods for better testability/encapsulation.",
                     "interface_segregation" => "Split large interfaces into smaller, focused ones.",
                     "single_responsibility" => "Split large classes (>200 lines) into smaller, focused classes.",
                     "security_metrics" => "Use prepared statements, input validation, and output escaping.",
@@ -3127,7 +3135,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $output .= "\nNeeds Improvement:\n";
                 foreach ($worst as $fn) {
                     $score = $analysis[$fn]["score"];
-                    $output .= "* {$fn}(); " . str_repeat(" ", $maxLen - strlen($fn)) . number_format($score, 1) . " // ";
+                    $output .=
+                        "* {$fn}(); " . str_repeat(" ", $maxLen - strlen($fn)) . number_format($score, 1) . " // ";
                     foreach ($analysis[$fn]["metrics"] as $metric => $value) {
                         if ($value != 0) {
                             $output .= "{$metric}: " . number_format($value, 1) . "; ";
@@ -3203,20 +3212,14 @@ if ($LOCAL_PATH === ROOT_PATH) {
          */
 
         # _file_functions begin
-        function _file_functions(string $src): array
+        function _node_file_functions(string $src): array
         {
-            return preg_match_all(
-                '/function\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/',
-                $src,
-                $m,
-            )
-                ? $m[1]
-                : [];
+            return preg_match_all('/function\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/', $src, $m) ? $m[1] : [];
         }
         # _file_functions end
 
         # get_function_body_with_docblock begin
-        function getFunctionBodyWithDocblock(string $src, string $functionName): string
+        function _node_get_function_body_with_docblock(string $src, string $functionName): string
         {
             $ename = preg_quote($functionName, "/");
             $pattern =
@@ -3226,15 +3229,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
             if (preg_match($pattern, $src, $m)) {
                 return $m[0];
             }
-            return extractFunctionWithBraceCounting($src, $functionName);
+            return _node_extract_function_with_brace_counting($src, $functionName);
         }
         # get_function_body_with_docblock end
 
         # extract_function_with_brace_counting begin
-        function extractFunctionWithBraceCounting(
-            string $src,
-            string $functionName,
-        ): string {
+        function _node_extract_function_with_brace_counting(string $src, string $functionName): string
+        {
             $ename = preg_quote($functionName, "/");
             $declPat =
                 "/(?:\/\*\*.*?\*\/\s*)?\s*(?:(?:public|private|protected|static)\s+)*function\s+" .
@@ -3263,7 +3264,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     } elseif ($c === "}") {
                         $braceCount--;
                         if ($braceCount === 0) {
-                            $fstart = findFunctionStart($src, $startPos);
+                            $fstart = _node_find_function_start($src, $startPos);
                             return substr($src, $fstart, $i - $fstart + 1);
                         }
                     } elseif ($c === '"' || $c === "'" || $c === "`") {
@@ -3287,7 +3288,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # extract_function_with_brace_counting end
 
         # find_function_start begin
-        function findFunctionStart(string $src, int $pos): int
+        function _node_find_function_start(string $src, int $pos): int
         {
             $limit = max(0, $pos - 1000);
             for ($i = $pos - 1; $i >= $limit; $i--) {
@@ -3298,13 +3299,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         }
                     }
                 }
-                if (
-                    $i > 5 &&
-                    preg_match(
-                        '/\n\s*(?:public|private|protected|static)\b/',
-                        substr($src, $i - 6, 7),
-                    )
-                ) {
+                if ($i > 5 && preg_match('/\n\s*(?:public|private|protected|static)\b/', substr($src, $i - 6, 7))) {
                     for ($j = $i - 6; $j >= $limit; $j--) {
                         if ($src[$j] === "\n") {
                             return $j + 1;
@@ -3318,48 +3313,46 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # find_function_start end
 
         # compute_file_metrics begin
-        function computeFileMetrics(string $src): array
+        function _node_compute_file_metrics(string $src): array
         {
             return [
-                "strict_types" => _file_strict_types($src),
-                "typed_properties" => _file_typed_properties($src),
-                "namespace" => _file_namespace($src),
-                "no_superglobals" => _file_no_superglobals($src),
-                "final_class" => _file_final_class($src),
-                "modern_visibility" => _file_modern_visibility($src),
-                "constructor_property_promotion" => _file_constructor_property_promotion(
-                    $src,
-                ),
-                "union_types" => _file_union_types($src),
-                "nullsafe_operator" => _file_nullsafe_operator($src),
-                "match_expression" => _file_match_expression($src),
-                "named_arguments" => _file_named_arguments($src),
-                "attributes" => _file_attributes($src),
-                "enums" => _file_enums($src),
-                "readonly_properties" => _file_readonly_properties($src),
-                "never_return_type" => _file_never_return_type($src),
-                "array_is_list" => _file_array_is_list($src),
-                "first_class_callable" => _file_first_class_callable($src),
-                "pure_annotations" => _file_pure_annotations($src),
-                "immutable_objects" => _file_immutable_objects($src),
-                "cohesion" => _file_cohesion($src),
-                "cyclomatic_complexity" => _file_cyclomatic_complexity($src),
-                "dependency_inversion" => _file_dependency_inversion($src),
-                "no_magic_numbers" => _file_no_magic_numbers($src),
-                "no_global_functions" => _file_no_global_functions($src),
-                "interface_segregation" => _file_interface_segregation($src),
-                "single_responsibility" => _file_single_responsibility($src),
-                "security_metrics" => _file_security_metrics($src),
-                "performance_hints" => _file_performance_hints($src),
-                "documentation" => _file_documentation($src),
-                "test_coverage" => _file_test_coverage($src),
-                "coding_standards" => _file_coding_standards($src),
+                "strict_types" => _node_file_strict_types($src),
+                "typed_properties" => _node_file_typed_properties($src),
+                "namespace" => _node_file_namespace($src),
+                "no_superglobals" => _node_file_no_superglobals($src),
+                "final_class" => _node_file_final_class($src),
+                "modern_visibility" => _node_file_modern_visibility($src),
+                "constructor_property_promotion" => _node_file_constructor_property_promotion($src),
+                "union_types" => _node_file_union_types($src),
+                "nullsafe_operator" => _node_file_nullsafe_operator($src),
+                "match_expression" => _node_file_match_expression($src),
+                "named_arguments" => _node_file_named_arguments($src),
+                "attributes" => _node_file_attributes($src),
+                "enums" => _node_file_enums($src),
+                "readonly_properties" => _node_file_readonly_properties($src),
+                "never_return_type" => _node_file_never_return_type($src),
+                "array_is_list" => _node_file_array_is_list($src),
+                "first_class_callable" => _node_file_first_class_callable($src),
+                "pure_annotations" => _node_file_pure_annotations($src),
+                "immutable_objects" => _node_file_immutable_objects($src),
+                "cohesion" => _node_file_cohesion($src),
+                "cyclomatic_complexity" => _node_file_cyclomatic_complexity($src),
+                "dependency_inversion" => _node_file_dependency_inversion($src),
+                "no_magic_numbers" => _node_file_no_magic_numbers($src),
+                "no_global_functions" => _node_file_no_global_functions($src),
+                "interface_segregation" => _node_file_interface_segregation($src),
+                "single_responsibility" => _node_file_single_responsibility($src),
+                "security_metrics" => _node_file_security_metrics($src),
+                "performance_hints" => _node_file_performance_hints($src),
+                "documentation" => _node_file_documentation($src),
+                "test_coverage" => _node_file_test_coverage($src),
+                "coding_standards" => _node_file_coding_standards($src),
             ];
         }
         # compute_file_metrics end
 
         # _file_nullsafe_operator begin
-        function _file_nullsafe_operator(string $src): float
+        function _node_file_nullsafe_operator(string $src): float
         {
             $matches = preg_match_all("/\?\->/", $src);
             return $matches * 1.0;
@@ -3367,7 +3360,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_nullsafe_operator end
 
         # _file_match_expression begin
-        function _file_match_expression(string $src): float
+        function _node_file_match_expression(string $src): float
         {
             $matchCount = preg_match_all("/\bmatch\s*\(/", $src);
             $switchCount = preg_match_all("/\bswitch\s*\(/", $src);
@@ -3381,7 +3374,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_match_expression end
 
         # _file_named_arguments begin
-        function _file_named_arguments(string $src): float
+        function _node_file_named_arguments(string $src): float
         {
             $matches = preg_match_all("/\w+\s*\([^)]*?\b\w+\s*:/", $src);
             return $matches * 0.8;
@@ -3389,7 +3382,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_named_arguments end
 
         # _file_attributes begin
-        function _file_attributes(string $src): float
+        function _node_file_attributes(string $src): float
         {
             $matches = preg_match_all("/#\[(?!Deprecated\b|\w+\(deprecated)/", $src);
             return $matches * 2.0;
@@ -3397,7 +3390,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_attributes end
 
         # _file_enums begin
-        function _file_enums(string $src): float
+        function _node_file_enums(string $src): float
         {
             $matches = preg_match_all("/\benum\s+\w+/", $src);
             return $matches * 4.0;
@@ -3405,7 +3398,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_enums end
 
         # _file_array_is_list begin
-        function _file_array_is_list(string $src): float
+        function _node_file_array_is_list(string $src): float
         {
             $arrayIsList = preg_match_all("/\barray_is_list\s*\(/", $src);
             $manualChecks = preg_match_all(
@@ -3422,7 +3415,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_array_is_list end
 
         # _file_first_class_callable begin
-        function _file_first_class_callable(string $src): float
+        function _node_file_first_class_callable(string $src): float
         {
             $matches = preg_match_all("/(\w+(?:::)?\w*)\s*\(\.\.\.\)/", $src);
             return $matches * 2.0;
@@ -3430,12 +3423,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_first_class_callable end
 
         # _file_pure_annotations begin
-        function _file_pure_annotations(string $src): float
+        function _node_file_pure_annotations(string $src): float
         {
-            $hasReturnTypeWillChange = preg_match(
-                "/#\[\s*ReturnTypeWillChange\s*\]/",
-                $src,
-            );
+            $hasReturnTypeWillChange = preg_match("/#\[\s*ReturnTypeWillChange\s*\]/", $src);
             $hasPure = preg_match("/@psalm-(pure|immutable)|#\[Pure\]/", $src);
 
             return ($hasPure ? 2.0 : 0.0) - ($hasReturnTypeWillChange ? 1.0 : 0.0);
@@ -3443,7 +3433,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_pure_annotations end
 
         # _file_constructor_property_promotion begin
-        function _file_constructor_property_promotion(string $src): float
+        function _node_file_constructor_property_promotion(string $src): float
         {
             $pattern =
                 '/public\s+function\s+__construct\s*\((?:[^)]*?\b(?:public|protected|private)\s+(?:readonly\s+)?(?:[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??(?:\s*\|\s*[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??)*)\s+\$\w+(?:\s*=[^,)]+)?[^)]*)+\)/s';
@@ -3453,7 +3443,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_constructor_property_promotion end
 
         # _file_union_types begin
-        function _file_union_types(string $src): float
+        function _node_file_union_types(string $src): float
         {
             $pattern1 =
                 '/function\s+\w+\s*\([^)]*?\b(?:[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??(?:\s*\|\s*[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??)*)\s+\$\w+\s*:[^)]*?\|[^)]*?\)/';
@@ -3469,7 +3459,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_union_types end
 
         # _file_readonly_properties begin
-        function _file_readonly_properties(string $src): float
+        function _node_file_readonly_properties(string $src): float
         {
             $pattern =
                 '/\b(?:public|protected|private)\s+readonly\s+(?:static\s+)?(?:[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??(?:\s*\|\s*[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*\??)*)\s+\$\w+/';
@@ -3479,7 +3469,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_readonly_properties end
 
         # _file_never_return_type begin
-        function _file_never_return_type(string $src): float
+        function _node_file_never_return_type(string $src): float
         {
             $matches = preg_match_all("/:\s*never\b/", $src);
             return $matches * 2.5;
@@ -3487,7 +3477,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_never_return_type end
 
         # _file_immutable_objects begin
-        function _file_immutable_objects(string $src): float
+        function _node_file_immutable_objects(string $src): float
         {
             $hasNoSetters = !preg_match("/public\s+function\s+set\w+\s*\(/", $src);
 
@@ -3510,14 +3500,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_immutable_objects end
 
         # _file_cohesion begin
-        function _file_cohesion(string $src): float
+        function _node_file_cohesion(string $src): float
         {
-            preg_match_all(
-                "/\bclass\s+(\w+).*?\{(.*?)\}\s*(?=class|\Z)/s",
-                $src,
-                $matches,
-                PREG_SET_ORDER,
-            );
+            preg_match_all("/\bclass\s+(\w+).*?\{(.*?)\}\s*(?=class|\Z)/s", $src, $matches, PREG_SET_ORDER);
 
             $cohesionScore = 0.0;
             $classCount = 0;
@@ -3543,11 +3528,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         if ($i >= $j) {
                             continue;
                         }
-                        preg_match_all(
-                            '/\$this->(\w+)/',
-                            $method1[2] . " " . $method2[2],
-                            $sharedProps,
-                        );
+                        preg_match_all('/\$this->(\w+)/', $method1[2] . " " . $method2[2], $sharedProps);
                         if (count(array_unique($sharedProps[1] ?? [])) > 0) {
                             $sharedPropertyUsage++;
                         }
@@ -3566,7 +3547,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_cohesion end
 
         # _file_cyclomatic_complexity begin
-        function _file_cyclomatic_complexity(string $src): float
+        function _node_file_cyclomatic_complexity(string $src): float
         {
             $decisionPoints = preg_match_all(
                 "/\b(?:if|elseif|while|for|foreach|case|catch|and\s*\(|or\s*\(|\|\||&&)\b/",
@@ -3597,27 +3578,16 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_cyclomatic_complexity end
 
         # _file_dependency_inversion begin
-        function _file_dependency_inversion(string $src): float
+        function _node_file_dependency_inversion(string $src): float
         {
-            $interfaceParams = preg_match_all(
-                '/@param\s+(\w+)\s+\$\w+/',
-                $src,
-                $paramMatches,
-            );
-            $totalParams = preg_match_all(
-                "/function\s+\w+\s*\(([^)]*)\)/",
-                $src,
-                $funcMatches,
-            );
+            $interfaceParams = preg_match_all('/@param\s+(\w+)\s+\$\w+/', $src, $paramMatches);
+            $totalParams = preg_match_all("/function\s+\w+\s*\(([^)]*)\)/", $src, $funcMatches);
 
             $interfaceCount = 0;
             foreach ($paramMatches[1] ?? [] as $type) {
                 if (
                     preg_match("/^[A-Z]/", $type) &&
-                    !preg_match(
-                        '/^(int|string|bool|float|array|callable|iterable|mixed|void)$/',
-                        $type,
-                    )
+                    !preg_match('/^(int|string|bool|float|array|callable|iterable|mixed|void)$/', $type)
                 ) {
                     $interfaceCount++;
                 }
@@ -3633,7 +3603,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_dependency_inversion end
 
         # _file_no_magic_numbers begin
-        function _file_no_magic_numbers(string $src): float
+        function _node_file_no_magic_numbers(string $src): float
         {
             $constants = preg_match_all("/\bconst\s+\w+\s*=/", $src);
             $magicNumbers = preg_match_all("/\b(?:[1-9]\d*|0)\b(?!\s*::)/", $src);
@@ -3648,16 +3618,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_no_magic_numbers end
 
         # _file_no_global_functions begin
-        function _file_no_global_functions(string $src): float
+        function _node_file_no_global_functions(string $src): float
         {
-            $globalFunctions = preg_match_all(
-                "/\b(?:header|setcookie|session_start|mysql_|pg_)\s*\(/i",
-                $src,
-            );
-            $wrappedCalls = preg_match_all(
-                "/->(?:setHeader|setCookie|startSession|query)\s*\(/",
-                $src,
-            );
+            $globalFunctions = preg_match_all("/\b(?:header|setcookie|session_start|mysql_|pg_)\s*\(/i", $src);
+            $wrappedCalls = preg_match_all("/->(?:setHeader|setCookie|startSession|query)\s*\(/", $src);
 
             if ($globalFunctions === 0) {
                 return 0.0;
@@ -3669,7 +3633,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_no_global_functions end
 
         # _file_interface_segregation begin
-        function _file_interface_segregation(string $src): float
+        function _node_file_interface_segregation(string $src): float
         {
             $interfaceMethods = preg_match_all(
                 "/interface\s+\w+\s*\{[^}]*\bfunction\s+\w+\s*\([^)]*\)[^}]+\}/s",
@@ -3703,15 +3667,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_interface_segregation end
 
         # _file_single_responsibility begin
-        function _file_single_responsibility(string $src): float
+        function _node_file_single_responsibility(string $src): float
         {
             $linesPerClass = [];
-            preg_match_all(
-                "/\bclass\s+\w+(?:.*?)\{(.*?)\}(?=\s*class|\Z)/s",
-                $src,
-                $classMatches,
-                PREG_SET_ORDER,
-            );
+            preg_match_all("/\bclass\s+\w+(?:.*?)\{(.*?)\}(?=\s*class|\Z)/s", $src, $classMatches, PREG_SET_ORDER);
 
             foreach ($classMatches as $match) {
                 $lines = substr_count($match[1], "\n");
@@ -3741,52 +3700,37 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_single_responsibility end
 
         # _file_security_metrics begin
-        function _file_security_metrics(string $src): float
+        function _node_file_security_metrics(string $src): float
         {
             $penalty = 0.0;
 
-            $sqlInjection = preg_match_all(
-                '/\$_(?:GET|POST)\s*\[.*?\]\s*\.\s*\$/',
-                $src,
-            );
+            $sqlInjection = preg_match_all('/\$_(?:GET|POST)\s*\[.*?\]\s*\.\s*\$/', $src);
             $penalty -= $sqlInjection * 15.0;
 
             $xss = preg_match_all('/echo\s+\$_(?:GET|POST|REQUEST)\s*\[/i', $src);
             $penalty -= $xss * 12.0;
 
-            $fileInclusion = preg_match_all(
-                '/(?:include|require)(?:_once)?\s*\(\s*\$/',
-                $src,
-            );
+            $fileInclusion = preg_match_all('/(?:include|require)(?:_once)?\s*\(\s*\$/', $src);
             $penalty -= $fileInclusion * 10.0;
 
             $positive = 0.0;
-            $positive +=
-                preg_match_all("/htmlspecialchars|htmlentities|strip_tags/", $src) *
-                3.0;
+            $positive += preg_match_all("/htmlspecialchars|htmlentities|strip_tags/", $src) * 3.0;
             $positive += preg_match_all("/password_hash|password_verify/", $src) * 4.0;
-            $positive +=
-                preg_match_all(
-                    "/PDO::quote|mysqli_real_escape_string|prepared.*statement/i",
-                    $src,
-                ) * 5.0;
+            $positive += preg_match_all("/PDO::quote|mysqli_real_escape_string|prepared.*statement/i", $src) * 5.0;
 
             return $penalty + $positive;
         }
         # _file_security_metrics end
 
         # _file_performance_hints begin
-        function _file_performance_hints(string $src): float
+        function _node_file_performance_hints(string $src): float
         {
             $score = 0.0;
 
             $selectStar = preg_match_all("/SELECT\s*\*\s*FROM/i", $src);
             $score -= $selectStar * 5.0;
 
-            $nPlusOne = preg_match_all(
-                "/N\+1\s+problem|loop.*query|query.*loop/i",
-                $src,
-            );
+            $nPlusOne = preg_match_all("/N\+1\s+problem|loop.*query|query.*loop/i", $src);
             $score -= $nPlusOne * 8.0;
 
             $syncHttp = preg_match_all('/file_get_contents\s*\(\s*["\']http/', $src);
@@ -3803,11 +3747,15 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_performance_hints end
 
         # _file_documentation begin
-        function _file_documentation(string $src): float
+        function _node_file_documentation(string $src): float
         {
             // Match any function, with or without visibility keywords
             // Handles: public function, static function, or just function
-            $totalMethods = preg_match_all("/(?:(?:public|protected|private|static)\s+)*function\s+\w+\s*\(/i", $src, $matches);
+            $totalMethods = preg_match_all(
+                "/(?:(?:public|protected|private|static)\s+)*function\s+\w+\s*\(/i",
+                $src,
+                $matches,
+            );
 
             // Match docblocks followed by those same function signatures
             // The 's' modifier allows '.' to match newlines, making it safer
@@ -3835,12 +3783,9 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_documentation end
 
         # _file_test_coverage begin
-        function _file_test_coverage(string $src): float
+        function _node_file_test_coverage(string $src): float
         {
-            $hasTests = preg_match_all(
-                "/\@test|\@covers|\@dataProvider|PHPUnit/",
-                $src,
-            );
+            $hasTests = preg_match_all("/\@test|\@covers|\@dataProvider|PHPUnit/", $src);
             $hasMocking = preg_match_all("/\bmock\b|Mockery|createMock/", $src);
 
             $positive = $hasTests * 6.0 + $hasMocking * 4.0;
@@ -3854,7 +3799,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_test_coverage end
 
         # _file_coding_standards begin
-        function _file_coding_standards(string $src): float
+        function _node_file_coding_standards(string $src): float
         {
             $violations = 0;
             $lines = explode("\n", $src);
@@ -3920,14 +3865,14 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_coding_standards end
 
         # _file_strict_types begin
-        function _file_strict_types(string $src): float
+        function _node_file_strict_types(string $src): float
         {
             return str_contains($src, "declare(strict_types=1)") ? 9.0 : -5.0;
         }
         # _file_strict_types end
 
         # _file_typed_properties begin
-        function _file_typed_properties(string $src): float
+        function _node_file_typed_properties(string $src): float
         {
             $totalProperties = 0;
             $typedProperties = 0;
@@ -3963,25 +3908,22 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_typed_properties end
 
         # _file_namespace begin
-        function _file_namespace(string $src): float
+        function _node_file_namespace(string $src): float
         {
             return str_contains($src, "namespace ") ? 0.0 : -3.0;
         }
         # _file_namespace end
 
         # _file_no_superglobals begin
-        function _file_no_superglobals(string $src): float
+        function _node_file_no_superglobals(string $src): float
         {
-            $superglobals = preg_match_all(
-                '/\$\_(GET|POST|SESSION|COOKIE|SERVER|REQUEST|FILES)\b/',
-                $src,
-            );
+            $superglobals = preg_match_all('/\$\_(GET|POST|SESSION|COOKIE|SERVER|REQUEST|FILES)\b/', $src);
             return -($superglobals * 3.0);
         }
         # _file_no_superglobals end
 
         # _file_final_class begin
-        function _file_final_class(string $src): float
+        function _node_file_final_class(string $src): float
         {
             $finalClasses = preg_match_all("/\bfinal\b\s+\bclass\b/i", $src);
             $totalClasses = preg_match_all("/\bclass\s+\w+/", $src);
@@ -3996,13 +3938,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_final_class end
 
         # _file_modern_visibility begin
-        function _file_modern_visibility(string $src): float
+        function _node_file_modern_visibility(string $src): float
         {
             $varUsage = preg_match_all('/\bvar\s+\$/', $src);
-            $modernVisibility = preg_match_all(
-                '/\b(?:public|private|protected)\s+\$/',
-                $src,
-            );
+            $modernVisibility = preg_match_all('/\b(?:public|private|protected)\s+\$/', $src);
 
             $score = $modernVisibility * 0.1;
             $score -= $varUsage * 5.0;
@@ -4012,7 +3951,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # _file_modern_visibility end
 
         # metric_calls begin
-        function metricCalls(string $src, string $name, string $body): float
+        function _node_metric_calls(string $src, string $name, string $body): float
         {
             static $callCache = [];
 
@@ -4027,7 +3966,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $pat = "/(?<!function\s)" . preg_quote($name, "/") . "\s*\(/";
                 $totalCalls += preg_match_all($pat, $src);
 
-                $structure = [...[["", ROOT_PATH, ""]], ...callStructure()];
+                $structure = [...[["", ROOT_PATH, ""]], ..._node_structure_call()];
                 foreach ($structure as [$call, $path]) {
                     if (
                         str_contains($path, D . "vendor" . D) ||
@@ -4059,7 +3998,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # metric_calls end
 
         # metric_docblock begin
-        function metricDocblock(string $name, string $body): float
+        function _node_metric_dockblock(string $name, string $body): float
         {
             if (!str_contains($body, "/**")) {
                 return -15.0;
@@ -4070,7 +4009,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # metric_docblock end
 
         # metric_lines begin
-        function metricLines(string $name, string $body): float
+        function _node_metric_lines(string $name, string $body): float
         {
             if (preg_match("/\{([\s\S]*)\}/", $body, $m)) {
                 $inner = $m[1];
@@ -4085,7 +4024,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # metric_lines end
 
         # metric_parameters begin
-        function metricParameters(string $name, string $body): float
+        function _node_metric_parameters(string $name, string $body): float
         {
             $pat = "/function\s+" . preg_quote($name, "/") . "\s*\(([^)]*)\)/";
             if (preg_match($pat, $body, $m)) {
@@ -4098,7 +4037,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # metric_parameters end
 
         # metric_branching begin
-        function metricBranching(string $name, string $body): float
+        function _node_metric_branching(string $name, string $body): float
         {
             $dp = 0;
             $patterns = [
@@ -4129,9 +4068,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $col = preg_match_all("/:/", $body);
             $dp -= $q;
             $dp += min($q, $col);
-            if (
-                preg_match("/(\bif|\bfor|\bforeach|\bwhile)\s*\([^}]{100,}\)/s", $body)
-            ) {
+            if (preg_match("/(\bif|\bfor|\bforeach|\bwhile)\s*\([^}]{100,}\)/s", $body)) {
                 $dp += 2;
             }
             return $dp * -2.5;
@@ -4139,7 +4076,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # metric_branching end
 
         # metric_division begin
-        function metricDivision(string $name, string $body): float
+        function _node_metric_division(string $name, string $body): float
         {
             if (preg_match("/\{([\s\S]*?)\}/", $body, $m)) {
                 $body = $m[1];
@@ -4151,7 +4088,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # metric_division end
 
         # metric_string_ops begin
-        function metricStringOps(string $name, string $body): float
+        function _node_metric_string_operations(string $name, string $body): float
         {
             if (preg_match("/\{([\s\S]*?)\}/", $body, $m)) {
                 $body = $m[1];
@@ -4187,7 +4124,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # metric_string_ops end
 
         # metric_builtin_usage begin
-        function metricBuiltinUsage(string $name, string $body): float
+        function _node_metric_builtin_usage(string $name, string $body): float
         {
             if (!preg_match("/\{([\s\S]*?)\}/", $body, $m)) {
                 return 0.0;
@@ -4197,11 +4134,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $all = get_defined_functions();
             $builtin = array_map("strtolower", $all["internal"] ?? []);
             $user = array_map("strtolower", $all["user"] ?? []);
-            preg_match_all(
-                '/\b([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)\s*\(/',
-                $inner,
-                $matches,
-            );
+            preg_match_all('/\b([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)\s*\(/', $inner, $matches);
             $skip = [
                 "if",
                 "else",
@@ -4236,7 +4169,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # metric_builtin_usage end
 
         # metric_if_else_balance begin
-        function metricIfElseBalance(string $name, string $body): float
+        function _node_metric_if_else_balance(string $name, string $body): float
         {
             if (preg_match("/\{([\s\S]*?)\}/", $body, $m)) {
                 $body = $m[1];
@@ -4261,7 +4194,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_rank end
 
         # cli_search begin
-        function cli_search(bool $tooltip = false, array $argv = []): string
+        function _node_cli_search(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<query...> Search across all code files";
@@ -4277,7 +4210,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $extensions = ["php", "js", "css", "html", "scss", "json", "xml", "yml", "yaml", "md", "txt"];
             $excludedDirs = ["vendor", "Database", "Logs", "Backup", "Deprecated"];
 
-            $structure = [...[["", ROOT_PATH, ""]], ...callStructure()];
+            $structure = [...[["", ROOT_PATH, ""]], ..._node_structure_call()];
             foreach ($structure as [$call, $path]) {
                 foreach ($excludedDirs as $excludedDir) {
                     if (str_contains($path, D . $excludedDir . D)) {
@@ -4331,7 +4264,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_search end
 
         # cli_serve begin
-        function cli_serve(bool $tooltip = false, array $argv = []): string
+        function _node_cli_serve(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<port> Starts PHP built-in web server for current node.";
@@ -4347,12 +4280,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 return "E: Port {$port} is already in use.\n";
             }
 
-            $command = sprintf(
-                "php -S %s:%s -t %s",
-                $host,
-                $port,
-                escapeshellarg($documentRoot),
-            );
+            $command = sprintf("php -S %s:%s -t %s", $host, $port, escapeshellarg($documentRoot));
 
             $output = "Starting development server at http://{$host}:{$port}/\n";
             $output .= "Document root: {$documentRoot}\n";
@@ -4365,7 +4293,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_serve end
 
         # cli_test begin
-        function cli_test(bool $tooltip = false, array $argv = []): string
+        function _node_cli_test(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<type|internal> <filter> Use 'internal' for node testing.";
@@ -4379,15 +4307,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $filter = $argv[1] ?? "";
 
             if ($type === "internal") {
-                return runInternalTests($filter);
+                return _node_run_internal_tests($filter);
             }
 
             $testTypes = ["Unit", "Integration", "Contract", "E2E"];
 
             if (!in_array($type, $testTypes)) {
-                return "E: Invalid test type. Available: " .
-                    implode(", ", $testTypes) .
-                    "\n";
+                return "E: Invalid test type. Available: " . implode(", ", $testTypes) . "\n";
             }
 
             $testPath = ROOT_PATH . "Test" . D . $type;
@@ -4423,10 +4349,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     include_once $testFile;
 
                     $functions = get_defined_functions()["user"];
-                    $testFunctions = array_filter(
-                        $functions,
-                        fn($f) => str_starts_with($f, "test_"),
-                    );
+                    $testFunctions = array_filter($functions, fn($f) => str_starts_with($f, "test_"));
 
                     foreach ($testFunctions as $testFunc) {
                         $total++;
@@ -4470,10 +4393,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                                         $output .= "OK {$class}::{$testName}()\n";
                                         $passed++;
                                     } catch (Throwable $e) {
-                                        $output .=
-                                            "FAIL {$class}::{$testName}(): " .
-                                            $e->getMessage() .
-                                            "\n";
+                                        $output .= "FAIL {$class}::{$testName}(): " . $e->getMessage() . "\n";
                                         $failed++;
                                     }
                                 }
@@ -4497,16 +4417,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return $output;
         }
 
-        function runInternalTests(string $filter = ""): string
+        function _node_run_internal_tests(string $filter = ""): string
         {
             $output = "Running internal tests...\n\n";
 
             $allFunctions = get_defined_functions()["user"];
 
-            $testFunctions = array_filter(
-                $allFunctions,
-                fn($functionName) => str_starts_with($functionName, "test_"),
-            );
+            $testFunctions = array_filter($allFunctions, fn($functionName) => str_starts_with($functionName, "test_"));
 
             if ($filter !== "") {
                 $searchName = "test_{$filter}";
@@ -4523,8 +4440,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 if (!$found) {
                     $testFunctions = array_filter(
                         $testFunctions,
-                        fn($functionName) => strpos($functionName, $searchName) !==
-                            false,
+                        fn($functionName) => strpos($functionName, $searchName) !== false,
                     );
 
                     if (empty($testFunctions)) {
@@ -4563,8 +4479,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         $failed++;
                     }
                 } catch (Exception $e) {
-                    $output .=
-                        "{$testFunc} failed: Exception - " . $e->getMessage() . "\n";
+                    $output .= "{$testFunc} failed: Exception - " . $e->getMessage() . "\n";
                     $failed++;
                 } catch (Error $e) {
                     $output .= "{$testFunc} failed: Error - " . $e->getMessage() . "\n";
@@ -4584,7 +4499,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_test end
 
         # cli_wrap begin
-        function cli_wrap(bool $tooltip = false, array $argv = []): string
+        function _node_cli_wrap(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
                 return "<open|close> Wraps/unwraps node.php into separate files.";
@@ -4593,13 +4508,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $action = $argv[0] ?? "";
 
             return match ($action) {
-                "open" => wrapOpen(),
-                "close" => wrapClose(),
+                "open" => _node_wrap_open(),
+                "close" => _node_wrap_close(),
                 default => "E: Usage: wrap <open|close>\n",
             };
         }
 
-        function wrapOpen(): string
+        function _node_wrap_open(): string
         {
             $nodeFile = ROOT_PATH . "node.php";
             if (!file_exists($nodeFile)) {
@@ -4607,19 +4522,19 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             $content = file_get_contents($nodeFile);
-            $sections = extractSections($content);
+            $sections = _node_extract_sections($content);
 
             if (empty($sections)) {
                 return "✓ node.php is already wrapped\n";
             }
 
-            $newContent = processSectionsOpen($content, $sections);
+            $newContent = _node_process_sections_open($content, $sections);
             file_put_contents($nodeFile, $newContent);
 
             return "✓ Wrapped " . count($sections) . " sections\n";
         }
 
-        function wrapClose(): string
+        function _node_wrap_close(): string
         {
             $nodeFile = ROOT_PATH . "node.php";
             if (!file_exists($nodeFile)) {
@@ -4627,19 +4542,19 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             $content = file_get_contents($nodeFile);
-            $sections = findWrappedSections($content);
+            $sections = _node_find_wrapped_sections($content);
 
             if (empty($sections)) {
                 return "✓ node.php is already unwrapped\n";
             }
 
-            $newContent = processSectionsClose($content, $sections);
+            $newContent = _node_process_sections_close($content, $sections);
             file_put_contents($nodeFile, $newContent);
 
             return "✓ Unwrapped " . count($sections) . " sections\n";
         }
 
-        function extractSections(string $content, string $parentPath = ""): array
+        function _node_extract_sections(string $content, string $parentPath = ""): array
         {
             $lines = explode("\n", $content);
             $sections = [];
@@ -4649,9 +4564,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             while ($i < $n) {
                 $line = $lines[$i];
 
-                if (
-                    preg_match('/^(\s*)#\s*([a-z_]+)\s+begin\s*$/', $line, $beginMatch)
-                ) {
+                if (preg_match('/^(\s*)#\s*([a-z_]+)\s+begin\s*$/', $line, $beginMatch)) {
                     $markerIndent = $beginMatch[1];
                     $sectionName = $beginMatch[2];
                     $startIndex = $i;
@@ -4660,14 +4573,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     $foundEnd = false;
 
                     while ($j < $n) {
-                        if (
-                            preg_match(
-                                "/^\s*#\s*" .
-                                    preg_quote($sectionName, "/") .
-                                    '\s+end\s*$/',
-                                $lines[$j],
-                            )
-                        ) {
+                        if (preg_match("/^\s*#\s*" . preg_quote($sectionName, "/") . '\s+end\s*$/', $lines[$j])) {
                             $endIndex = $j;
                             $foundEnd = true;
                             break;
@@ -4681,19 +4587,11 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         $sectionContent = rtrim($sectionContent);
 
                         if (!preg_match("/^\s*include_once\s+/", $sectionContent)) {
-                            $fullName = $parentPath
-                                ? "{$parentPath}.{$sectionName}"
-                                : $sectionName;
+                            $fullName = $parentPath ? "{$parentPath}.{$sectionName}" : $sectionName;
 
-                            $innerSections = extractSections(
-                                $sectionContent,
-                                $fullName,
-                            );
+                            $innerSections = _node_extract_sections($sectionContent, $fullName);
                             if (!empty($innerSections)) {
-                                $sectionContent = processSectionsOpen(
-                                    $sectionContent,
-                                    $innerSections,
-                                );
+                                $sectionContent = _node_process_sections_open($sectionContent, $innerSections);
                             }
 
                             $sections[] = [
@@ -4716,7 +4614,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return $sections;
         }
 
-        function processSectionsOpen(string $content, array $sections): string
+        function _node_process_sections_open(string $content, array $sections): string
         {
             $lines = explode("\n", $content);
             $offset = 0;
@@ -4725,16 +4623,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $start = $section["start"] + $offset;
                 $end = $section["end"] + $offset;
 
-                $cleanContent = removeRelativeIndentation(
-                    $section["content"],
-                    $section["indent"],
-                );
+                $cleanContent = _node_remove_relative_indentation($section["content"], $section["indent"]);
 
                 $sectionFile = ROOT_PATH . "node.{$section["fullName"]}.php";
-                file_put_contents(
-                    $sectionFile,
-                    "<?php declare(strict_types=1);\n\n{$cleanContent}\n",
-                );
+                file_put_contents($sectionFile, "<?php declare(strict_types=1);\n\n{$cleanContent}\n");
 
                 $replacement = [
                     "{$section["indent"]}# {$section["name"]} begin",
@@ -4749,7 +4641,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return implode("\n", $lines);
         }
 
-        function findWrappedSections(string $content): array
+        function _node_find_wrapped_sections(string $content): array
         {
             $lines = explode("\n", $content);
             $sections = [];
@@ -4759,9 +4651,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             while ($i < $n) {
                 $line = $lines[$i];
 
-                if (
-                    preg_match('/^(\s*)#\s*([a-z_]+)\s+begin\s*$/', $line, $beginMatch)
-                ) {
+                if (preg_match('/^(\s*)#\s*([a-z_]+)\s+begin\s*$/', $line, $beginMatch)) {
                     $markerIndent = $beginMatch[1];
                     $sectionName = $beginMatch[2];
 
@@ -4779,14 +4669,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         $foundEnd = false;
 
                         while ($j < $n) {
-                            if (
-                                preg_match(
-                                    "/^\s*#\s*" .
-                                        preg_quote($sectionName, "/") .
-                                        '\s+end\s*$/',
-                                    $lines[$j],
-                                )
-                            ) {
+                            if (preg_match("/^\s*#\s*" . preg_quote($sectionName, "/") . '\s+end\s*$/', $lines[$j])) {
                                 $foundEnd = true;
                                 break;
                             }
@@ -4813,7 +4696,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return $sections;
         }
 
-        function processSectionsClose(string $content, array $sections): string
+        function _node_process_sections_close(string $content, array $sections): string
         {
             $lines = explode("\n", $content);
             $offset = 0;
@@ -4834,24 +4717,15 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     );
                     $sectionContent = rtrim($sectionContent);
 
-                    $innerSections = findWrappedSections($sectionContent);
+                    $innerSections = _node_find_wrapped_sections($sectionContent);
                     if (!empty($innerSections)) {
-                        $sectionContent = processSectionsClose(
-                            $sectionContent,
-                            $innerSections,
-                        );
+                        $sectionContent = _node_process_sections_close($sectionContent, $innerSections);
                     }
 
-                    $indentedContent = addRelativeIndentation(
-                        $sectionContent,
-                        $section["indent"],
-                    );
+                    $indentedContent = _node_add_relative_indentation($sectionContent, $section["indent"]);
 
                     $replacement = ["{$section["indent"]}# {$section["name"]} begin"];
-                    $replacement = array_merge(
-                        $replacement,
-                        explode("\n", $indentedContent),
-                    );
+                    $replacement = array_merge($replacement, explode("\n", $indentedContent));
                     $replacement[] = "{$section["indent"]}# {$section["name"]} end";
 
                     unlink($sectionFile);
@@ -4866,7 +4740,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             return implode("\n", $lines);
         }
 
-        function removeRelativeIndentation(string $content, string $baseIndent): string
+        function _node_remove_relative_indentation(string $content, string $baseIndent): string
         {
             if (empty($baseIndent)) {
                 return $content;
@@ -4877,16 +4751,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $baseLen = strlen($baseIndent);
 
             foreach ($lines as $line) {
-                $cleaned[] =
-                    substr($line, 0, $baseLen) === $baseIndent
-                        ? substr($line, $baseLen)
-                        : $line;
+                $cleaned[] = substr($line, 0, $baseLen) === $baseIndent ? substr($line, $baseLen) : $line;
             }
 
             return implode("\n", $cleaned);
         }
 
-        function addRelativeIndentation(string $content, string $baseIndent): string
+        function _node_add_relative_indentation(string $content, string $baseIndent): string
         {
             if (empty($baseIndent)) {
                 return $content;
@@ -4904,13 +4775,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_wrap end
 
         # Check if any argument got set over CLI.
-        if (isset($argv[1]) && ($cli_func = "cli_{$argv[1]}")) {
+        if (isset($argv[1]) && ($cli_func = "_node_cli_{$argv[1]}")) {
             if (function_exists($cli_func)) {
                 $r = $cli_func(false, array_slice($argv, 2));
                 unset($cli_func);
             }
         } else {
-            $r = cli_help(false, []);
+            $r = _node_cli_help(false, []);
         }
 
         # Begin CLI metrics.
@@ -4923,7 +4794,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
         unset($TIME_START, $u, $m, $title);
 
         echo ", Global variables: [" .
-            implode(",", array_diff(array_keys(get_defined_vars()), [...["r"], ...SUPERGLOBALS])) .
+            implode(
+                ",",
+                array_diff(array_keys(get_defined_vars()), [...["r", "__composer_autoload_files"], ...SUPERGLOBALS]),
+            ) .
             "]\n\n";
 
         unset($ROOT_PATHS);
@@ -4940,3 +4814,4 @@ if ($LOCAL_PATH === ROOT_PATH) {
             implode("\n", array_map(fn($x) => "{$x}={$_ENV[$x]}", array_keys($_ENV))),
         );
 }
+# skip_end
