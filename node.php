@@ -871,8 +871,6 @@ if (!function_exists("f")) {
                 if ($php = glob($path . D . "*.php")) {
                     foreach ($php as $fn) {
                         include_once $fn;
-
-                        return $fn;
                     }
                 }
             }
