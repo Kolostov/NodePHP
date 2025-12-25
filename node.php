@@ -25,6 +25,7 @@ if (!defined("NODE_NAME")) {
             "Status" => "Operational status (OK, Failed, Pending)",
             "Type" => "Categorization or classification",
             "Policy" => "Rule selection enum",
+            "Http" => "HTTP-related enumerations (Method, Status)",
         ],
 
         "Function" => [
@@ -33,6 +34,8 @@ if (!defined("NODE_NAME")) {
             "Transformer" => "Pure data-to-data transformations",
             "Presenter" => "Formatting helpers (headers, payloads)",
             "Command" => "Executable entry functions (cli_*)",
+            "Template" => "View template helpers",
+            "Validator" => "Validation helper functions",
         ],
 
         "Trait" => [
@@ -47,6 +50,7 @@ if (!defined("NODE_NAME")) {
                 "Endpoint" => "Public callable API contract",
                 "Responder" => "Response formatting contract",
                 "View" => "Renderable view contract",
+                "Middleware" => "Request processing pipeline contract",
             ],
             "Behavioral" => [
                 "Strategy" => "Algorithm interchangeable at runtime",
@@ -75,35 +79,34 @@ if (!defined("NODE_NAME")) {
 
         "Class" => [
             "Final" => [
-                "Model" => [
-                    "Entity" => "Domain object with identity and business logic",
-                    "Domain" => "Pure business logic (aggregates, value objects)",
-                    "Repository" => "Concrete persistence implementation",
-                    "Service" => "Business logic orchestration",
-                    "Validator" => "Data validation and integrity checking",
+                "Presentation" => [
+                    "Controller" => [
+                        "Action" => "Single action handler",
+                        "Resource" => "RESTful resource controller",
+                        "Page" => "Web page controller",
+                    ],
+                    "Endpoint" => "Concrete public API endpoint",
+                    "Responder" => "Concrete response formatter",
+                    "View" => [
+                        "Template" => "Concrete renderable template",
+                        "Component" => "Reusable UI or API component",
+                        "Renderer" => "Template rendering implementation",
+                    ],
+                    "Middleware" => "Request/response processing layer",
                 ],
 
-                "View" => [
-                    "Template" => "HTML/XML/JSON template files",
-                    "Partial" => "Reusable view components",
-                    "Layout" => "Base template structure",
-                    "Component" => "Self-contained UI components",
-                    "Renderer" => "Template rendering engine",
+                "Domain" => [
+                    "Entity" => "Domain object with identity and behavior",
+                    "ValueObject" => "Immutable identity-less value",
+                    "Aggregate" => "Cluster of domain objects",
+                    "Service" => "Domain logic orchestration",
+                    "Repository" => "Domain persistence implementation",
                 ],
 
-                "Controller" => [
-                    "Action" => "Single action controller",
-                    "Resource" => "RESTful resource controller",
-                    "Page" => "Web page controller",
-                    "API" => "API endpoint controller",
-                    "Middleware" => "Request/response processing middleware",
-                ],
-
-                "ValueObject" => "Immutable identity-less value",
-                "DTO" => [
-                    "Request" => "Incoming request data transfer",
-                    "Response" => "Outgoing response data transfer",
-                    "Form" => "Form data structure",
+                "Data" => [
+                    "DTO" => "Transport-only data carrier",
+                    "Form" => "Request data structure with validation",
+                    "Query" => "Data retrieval specification",
                 ],
 
                 "Behavioral" => [
@@ -111,6 +114,7 @@ if (!defined("NODE_NAME")) {
                     "Command" => "Executable intent",
                     "Specification" => "Concrete business rule",
                     "Policy" => "Concrete decision logic",
+                    "Validator" => "Data validation implementation",
                 ],
 
                 "Structural" => [
@@ -126,45 +130,53 @@ if (!defined("NODE_NAME")) {
                 ],
 
                 "Coordination" => [
-                    "Router" => "Request routing logic",
                     "Mediator" => "Central interaction coordinator",
                     "EventDispatcher" => "Concrete event publisher",
                     "Pipeline" => "Sequential processing chain",
+                    "Router" => "Request routing implementation",
                 ],
 
                 "Infrastructure" => [
                     "Service" => "Stateless application service",
                     "Client" => "Concrete outbound integration",
                     "Gateway" => "Concrete external boundary",
-                    "Cache" => "Caching implementation",
                 ],
             ],
 
             "Abstract" => [
-                "Model" => [
-                    "Base" => "Base model with common CRUD operations",
-                    "Repository" => "Abstract repository pattern",
-                    "Entity" => "Base entity class",
+                "Presentation" => [
+                    "Controller" => "Controller base with common request handling",
+                    "Endpoint" => "Endpoint base with shared API logic",
+                    "Responder" => "Responder base with common formatting",
+                    "View" => "View rendering base class",
                 ],
-                "Controller" => [
-                    "Base" => "Base controller with common functionality",
-                    "REST" => "Base RESTful controller",
-                    "API" => "Base API controller",
-                ],
-                "View" => [
-                    "Base" => "Base view renderer",
-                    "Template" => "Base template engine",
-                ],
-                "Service" => [
-                    "Base" => "Shared service logic base",
-                    "Application" => "Base application service",
+                "Base" => [
+                    "Controller" => "Request-handling base class",
+                    "Service" => "Shared service logic base",
+                    "Repository" => "Persistence base implementation",
+                    "Command" => "Command base abstraction",
+                    "Entity" => "Base entity with common domain logic",
                 ],
                 "Infrastructure" => [
                     "Database" => "Database integration base",
                     "Migration" => "Abstract migration base",
                     "Transport" => "Communication transport base",
+                    "Cache" => "Caching mechanism base",
                 ],
             ],
+        ],
+
+        "Template" => [
+            "View" => "HTML/XML view templates",
+            "Layout" => "Base template structures",
+            "Partial" => "Reusable template fragments",
+            "Component" => "Self-contained template components",
+            "Email" => "Email template files",
+        ],
+
+        "Translation" => [
+            "Locale" => "Language-specific translation files",
+            "Validation" => "Validation error translations",
         ],
 
         "Public" => [
@@ -183,32 +195,6 @@ if (!defined("NODE_NAME")) {
                 "Meta" => "robots.txt, security.txt, humans.txt, manifests",
                 "Build" => "Build outputs",
             ],
-        ],
-
-        "App" => [
-            "Controller" => "Application controllers",
-            "Model" => [
-                "Entity" => "Domain entities",
-                "Repository" => "Data access layer",
-                "Service" => "Business logic services",
-                "Validation" => "Validation rules and logic",
-            ],
-            "View" => [
-                "Template" => "View templates",
-                "Layout" => "Layout files",
-                "Component" => "Reusable view components",
-                "Partial" => "Partial view snippets",
-            ],
-            "Middleware" => "Request/response middleware",
-            "Exception" => "Custom exception classes",
-        ],
-
-        "Config" => [
-            "Application" => "App configuration files",
-            "Database" => "Database configuration",
-            "Routing" => "Route definitions",
-            "View" => "Template engine configuration",
-            "Service" => "Dependency injection configuration",
         ],
 
         "Database" => [
@@ -233,50 +219,11 @@ if (!defined("NODE_NAME")) {
             "PHP" => "Programmatic migration class",
         ],
 
-        "Route" => [
-            "Web" => "Web route definitions",
-            "API" => "API route definitions",
-            "Console" => "CLI command routes",
-            "Middleware" => "Route-specific middleware",
-        ],
-
         "Test" => [
-            "Unit" => [
-                "Model" => "Model/entity tests",
-                "Controller" => "Controller tests",
-                "Service" => "Service layer tests",
-            ],
-            "Feature" => [
-                "Web" => "Full web request tests",
-                "API" => "API endpoint tests",
-            ],
+            "Unit" => "Self-contained class or function tests",
             "Integration" => "Tests involving multiple nodes",
             "Contract" => "Interface compliance tests",
             "E2E" => "Full end-to-end request/response tests",
-        ],
-
-        "Resource" => [
-            "View" => "Template files (.php, .html, .twig)",
-            "Translation" => "Language files",
-            "Config" => "Configuration templates",
-        ],
-
-        "Console" => [
-            "Command" => "CLI commands",
-            "Scheduler" => "Scheduled task definitions",
-            "Output" => "Command output formatters",
-        ],
-
-        "Event" => [
-            "Listener" => "Event listeners/handlers",
-            "Subscriber" => "Event subscribers",
-            "Dispatcher" => "Event dispatching logic",
-        ],
-
-        "Provider" => [
-            "Service" => "Service providers",
-            "Event" => "Event service providers",
-            "Route" => "Route service providers",
         ],
 
         "Deprecated" => "Files that are considered deprecated.",
@@ -805,8 +752,43 @@ if (!function_exists("f")) {
     # structure_deploy begin
     # IMPORTANT! keep this check for ROOT_PATH node deployment.
     if (function_exists("_node_structure_deploy") === !1) {
+        function _node_clean_empty_dirs(string $dir): bool
+        {
+            if (!is_dir($dir)) {
+                return false;
+            }
+
+            $isEmpty = true;
+            $items = scandir($dir);
+
+            foreach ($items as $item) {
+                if ($item === "." || $item === "..") {
+                    continue;
+                }
+
+                $path = $dir . D . $item;
+
+                if (is_dir($path)) {
+                    if (!_node_clean_empty_dirs($path)) {
+                        $isEmpty = false;
+                    }
+                } else {
+                    $isEmpty = false;
+                }
+            }
+
+            if ($isEmpty && $dir !== ROOT_PATH) {
+                rmdir($dir);
+                return true;
+            }
+
+            return $isEmpty;
+        }
+
         function _node_structure_deploy(?array $NODE_STRUCTURE = null): void
         {
+            _node_clean_empty_dirs(ROOT_PATH);
+
             _node_structure_walk(
                 $NODE_STRUCTURE ?? NODE_STRUCTURE,
                 function (string $path): string {
