@@ -20,167 +20,247 @@ if (!defined("NODE_NAME")) {
 
     define("LOG_PATH", ROOT_PATH . "Log" . D);
     define("NODE_DEFAULT_STRUCTURES", [
+        "Backup" => "Zipped backup states",
+
+        "Config" => [
+            "App" => "Application configuration",
+            "Cache" => "Cache configuration",
+            "Core" => "Core application configuration files",
+            "Database" => "Database connections",
+            "Env" => "Environment-specific configuration",
+            "Mail" => "Email configuration",
+            "Module" => "Module or plugin configuration",
+            "Queue" => "Queue drivers",
+        ],
+
+        "Console" => [
+            "Command" => "CLI commands",
+            "Kernel" => "CLI bootstrap and dispatcher",
+            "Schedule" => "Scheduled tasks",
+        ],
+
+        "Database" => [
+            "Connection" => "Database configuration and connection pools",
+            "Factory" => "Model factories for seeding and testing",
+            "Fixture" => "Test data sets and factories",
+            "Flat" => [
+                "Index" => "Flat file indexing systems",
+                "JSON" => "JSON-based document storage",
+                "Serialized" => "PHP serialized data files",
+                "Storage" => "File-based database implementations",
+            ],
+            "Migration" => [
+                "Programmatic" => "Programmatic migration class",
+                "Raw" => "Raw SQL migration",
+            ],
+            "Procedure" => "Stored procedures and functions",
+            "Schema" => "Database structure definitions and DDL",
+            "Seed" => "Initial and test data population scripts",
+            "Trigger" => "Database trigger definitions",
+            "View" => "Database view definitions",
+        ],
+
+        "Deprecated" => "Deprecated files and structures",
+
+        "Docs" => "Documentation and guides",
+
+        "Extension" => [
+            "Hook" => "Action/filter hooks",
+            "Library" => "Reusable modules",
+            "Plugin" => "Pluggable feature modules",
+            "Shortcode" => "Content macros",
+            "Theme" => "Presentation overrides",
+        ],
+
+        "Git" => [
+            "Node" => "Node.php project repository",
+            "Project" => "All excluding Node.php",
+        ],
+
+        "Log" => [
+            "Access" => "HTTP request logs",
+            "Audit" => "Security and audit trails",
+            "Error" => "Error and exception logs",
+            "Exception" => "Unhandled exception dumps",
+            "Internal" => "Application runtime logs",
+        ],
+
         "Primitive" => [
             "Enum" => [
+                "Http" => "HTTP-related enumerations (Method, Status)",
+                "Permission" => "Access control permissions",
+                "Policy" => "Rule selection enum",
+                "Role" => "User roles and access levels",
                 "State" => "Finite lifecycle state (Draft, Active, ...)",
                 "Status" => "Operational status (OK, Failed, Pending)",
                 "Type" => "Categorization or classification",
-                "Policy" => "Rule selection enum",
-                "Http" => "HTTP-related enumerations (Method, Status)",
             ],
-
             "Function" => [
-                "Helper" => "Global stateless helpers",
-                "Predicate" => "Boolean-returning decision functions",
-                "Transformer" => "Pure data-to-data transformations",
-                "Presenter" => "Formatting helpers (headers, payloads)",
                 "Command" => "Executable entry functions (cli_*)",
+                "Helper" => "Global stateless helpers",
+                "Hook" => "Extension points for plugins or modules",
+                "Predicate" => "Boolean-returning decision functions",
+                "Presenter" => "Formatting helpers (headers, payloads)",
                 "Template" => "View template helpers",
+                "Transformer" => "Pure data-to-data transformations",
                 "Validator" => "Validation helper functions",
             ],
-
-            "Trait" => [
-                "Concern" => "Shared implementation across classes",
-                "Capability" => "Adds opt-in behavior (Loggable, Gainable)",
-                "Mixin" => "Pure helper logic without identity",
-            ],
-
             "Interface" => [
+                "Behavioral" => [
+                    "Command" => "Executable request abstraction",
+                    "Listener" => "Event listener contract",
+                    "Observer" => "Observer pattern contract",
+                    "Policy" => "Decision rule contract",
+                    "Specification" => "Combinable business rule",
+                    "State" => "State-dependent behavior contract",
+                    "Strategy" => "Algorithm interchangeable at runtime",
+                ],
+                "Creational" => [
+                    "Builder" => "Stepwise object construction",
+                    "Factory" => "Object creation abstraction",
+                ],
+                "Infrastructure" => [
+                    "Authenticator" => "Authentication contract",
+                    "Authorizer" => "Authorization contract",
+                    "Bus" => "Message transport contract",
+                    "Cache" => "Caching contract",
+                    "Client" => "Outbound communication contract",
+                    "EventDispatcher" => "Event publication contract",
+                    "Gate" => "Permission gate contract",
+                    "Gateway" => "External system boundary",
+                    "Logger" => "Logging contract",
+                    "Queueable" => "Queue job contract",
+                ],
                 "Presentation" => [
                     "Controller" => "Inbound request handling contract",
                     "Endpoint" => "Public callable API contract",
+                    "Middleware" => "Request processing pipeline contract",
                     "Responder" => "Response formatting contract",
                     "View" => "Renderable view contract",
-                    "Middleware" => "Request processing pipeline contract",
-                ],
-                "Behavioral" => [
-                    "Strategy" => "Algorithm interchangeable at runtime",
-                    "Command" => "Executable request abstraction",
-                    "Specification" => "Combinable business rule",
-                    "Policy" => "Decision rule contract",
-                    "State" => "State-dependent behavior contract",
                 ],
                 "Structural" => [
-                    "Repository" => "Persistence abstraction",
                     "Adapter" => "Interface translation layer",
-                    "Proxy" => "Access-controlling surrogate",
+                    "Composite" => "Tree structure composition",
                     "Decorator" => "Behavior-extending wrapper",
-                ],
-                "Creational" => [
-                    "Factory" => "Object creation abstraction",
-                    "Builder" => "Stepwise object construction",
-                ],
-                "Infrastructure" => [
-                    "EventDispatcher" => "Event publication contract",
-                    "Bus" => "Message transport contract",
-                    "Gateway" => "External system boundary",
-                    "Client" => "Outbound communication contract",
+                    "Proxy" => "Access-controlling surrogate",
+                    "Repository" => "Persistence abstraction",
                 ],
             ],
-
+            "Trait" => [
+                "Capability" => "Adds opt-in behavior (Loggable, Gainable)",
+                "Concern" => "Shared implementation across classes",
+                "Mixin" => "Pure helper logic without identity",
+                "Singleton" => "Singleton pattern implementation",
+                "SoftDeletes" => "Soft deletion behavior",
+                "Timestampable" => "Automatic timestamp management",
+            ],
             "Class" => [
-                "Final" => [
-                    "Presentation" => [
-                        "Controller" => [
-                            "Action" => "Single action handler",
-                            "Resource" => "RESTful resource controller",
-                            "Page" => "Web page controller",
-                        ],
-                        "Endpoint" => "Concrete public API endpoint",
-                        "Responder" => "Concrete response formatter",
-                        "View" => [
-                            "Template" => "Concrete renderable template",
-                            "Component" => "Reusable UI or API component",
-                            "Renderer" => "Template rendering implementation",
-                        ],
-                        "Middleware" => "Request/response processing layer",
-                    ],
-
-                    "Domain" => [
-                        "Entity" => "Domain object with identity and behavior",
-                        "ValueObject" => "Immutable identity-less value",
-                        "Aggregate" => "Cluster of domain objects",
-                        "Service" => "Domain logic orchestration",
-                        "Repository" => "Domain persistence implementation",
-                    ],
-
-                    "Data" => [
-                        "DTO" => "Transport-only data carrier",
-                        "Form" => "Request data structure with validation",
-                        "Query" => "Data retrieval specification",
-                    ],
-
-                    "Behavioral" => [
-                        "Strategy" => "Concrete interchangeable algorithm",
-                        "Command" => "Executable intent",
-                        "Specification" => "Concrete business rule",
-                        "Policy" => "Concrete decision logic",
-                        "Validator" => "Data validation implementation",
-                    ],
-
-                    "Structural" => [
-                        "Decorator" => "Behavior-extending wrapper implem.",
-                        "Adapter" => "Concrete interface translator",
-                        "Proxy" => "Concrete access surrogate",
-                        "Facade" => "Simplified subsystem interface",
-                    ],
-
-                    "Creational" => [
-                        "Factory" => "Concrete object creator",
-                        "Builder" => "Concrete stepwise constructor",
-                    ],
-
-                    "Coordination" => [
-                        "Mediator" => "Central interaction coordinator",
-                        "EventDispatcher" => "Concrete event publisher",
-                        "Pipeline" => "Sequential processing chain",
-                        "Router" => "Request routing implementation",
-                    ],
-
-                    "Infrastructure" => [
-                        "Service" => "Stateless application service",
-                        "Client" => "Concrete outbound integration",
-                        "Gateway" => "Concrete external boundary",
-                        "Mapper" => "Infrastructure data mappers (DTO <-> persistence)",
-                    ],
-                ],
-
                 "Abstract" => [
+                    "Base" => [
+                        "Command" => "Command base abstraction",
+                        "Controller" => "Request-handling base class",
+                        "Entity" => "Base entity with common domain logic",
+                        "Model" => "Base model class",
+                        "Repository" => "Persistence base implementation",
+                        "Service" => "Shared service logic base",
+                    ],
+                    "Infrastructure" => [
+                        "Cache" => "Caching mechanism base",
+                        "Database" => "Database integration base",
+                        "DTO" => "Data Transmission Object extendables",
+                        "Migration" => "Abstract migration base",
+                        "Transport" => "Communication transport base",
+                    ],
                     "Presentation" => [
                         "Controller" => "Controller base with common request handling",
                         "Endpoint" => "Endpoint base with shared API logic",
                         "Responder" => "Responder base with common formatting",
                         "View" => "View rendering base class",
                     ],
-                    "Base" => [
-                        "Controller" => "Request-handling base class",
-                        "Service" => "Shared service logic base",
-                        "Repository" => "Persistence base implementation",
-                        "Command" => "Command base abstraction",
-                        "Entity" => "Base entity with common domain logic",
+                ],
+                "Final" => [
+                    "Behavioral" => [
+                        "Command" => "Executable intent",
+                        "Listener" => "Event listener implementation",
+                        "Observer" => "Concrete observer",
+                        "Policy" => "Concrete decision logic",
+                        "Specification" => "Concrete business rule",
+                        "Strategy" => "Concrete interchangeable algorithm",
+                        "Validator" => "Data validation implementation",
+                    ],
+                    "Coordination" => [
+                        "Event" => "Application event object",
+                        "EventDispatcher" => "Concrete event publisher",
+                        "Job" => "Queueable job implementation",
+                        "Kernel" => "Application kernel",
+                        "Mediator" => "Central interaction coordinator",
+                        "Pipeline" => "Sequential processing chain",
+                        "Provider" => "Service provider",
+                        "Router" => "Request routing implementation",
+                        "Routes" => [
+                            "Api" => "API route definitions",
+                            "Console" => "Console route definitions",
+                            "Web" => "Web route definitions",
+                        ],
+                    ],
+                    "Creational" => [
+                        "Builder" => "Concrete stepwise constructor",
+                        "Factory" => "Concrete object creator",
+                    ],
+                    "Data" => [
+                        "DTO" => "Transport-only data carrier",
+                        "Form" => "Request data structure with validation",
+                        "Query" => "Data retrieval specification",
+                        "Request" => "Validated request DTO",
+                        "Resource" => "Read-only API resource",
+                    ],
+                    "Domain" => [
+                        "Aggregate" => "Cluster of domain objects",
+                        "Entity" => "Domain object with identity and behavior",
+                        "Model" => "ORM or persistence-backed model",
+                        "Repository" => "Domain persistence implementation",
+                        "Service" => "Domain logic orchestration",
+                        "ValueObject" => "Immutable identity-less value",
                     ],
                     "Infrastructure" => [
-                        "Database" => "Database integration base",
-                        "DTO" => "Data Transmission Object extendables",
-                        "Migration" => "Abstract migration base",
-                        "Transport" => "Communication transport base",
-                        "Cache" => "Caching mechanism base",
+                        "Client" => "Concrete outbound integration",
+                        "Console" => "CLI console implementation",
+                        "Exception" => "Base application exception",
+                        "Gateway" => "Concrete external boundary",
+                        "Library" => "Reusable library class",
+                        "Mapper" => "Infrastructure data mappers (DTO <-> persistence)",
+                        "Service" => "Stateless application service",
+                    ],
+                    "Presentation" => [
+                        "Controller" => [
+                            "Action" => "Single action handler",
+                            "Api" => "API-specific controller",
+                            "Page" => "Web page controller",
+                            "Resource" => "RESTful resource controller",
+                        ],
+                        "Endpoint" => "Concrete public API endpoint",
+                        "Filter" => "Request filtering implementation",
+                        "Http" => [
+                            "Request" => "Inbound HTTP request objects",
+                            "Resource" => "API resource transformers",
+                            "Response" => "HTTP response objects",
+                        ],
+                        "Middleware" => "Request/response processing layer",
+                        "Responder" => "Concrete response formatter",
+                        "View" => [
+                            "Component" => "Reusable UI or API component",
+                            "Renderer" => "Template rendering implementation",
+                            "Template" => "Concrete renderable template",
+                        ],
+                    ],
+                    "Structural" => [
+                        "Adapter" => "Concrete interface translator",
+                        "Decorator" => "Behavior-extending wrapper implem.",
+                        "Facade" => "Simplified subsystem interface",
+                        "Proxy" => "Concrete access surrogate",
                     ],
                 ],
             ],
-        ],
-
-        "Template" => [
-            "View" => "HTML/XML view templates",
-            "Layout" => "Base template structures",
-            "Partial" => "Reusable template fragments",
-            "Component" => "Self-contained template components",
-            "Email" => "Email template files",
-        ],
-
-        "Translation" => [
-            "Locale" => "Language-specific translation files",
-            "Validation" => "Validation error translations",
         ],
 
         "Public" => [
@@ -188,62 +268,41 @@ if (!defined("NODE_NAME")) {
             "Static" => [
                 "Asset" => [
                     "CSS" => "Compiled or authored stylesheets",
-                    "JS" => "Compiled or authored scripts",
-                    "IMG" => "Images (png, jpg, svg, webp)",
                     "FONT" => "Web fonts",
+                    "IMG" => "Images (png, jpg, svg, webp)",
+                    "JS" => "Compiled or authored scripts",
                 ],
+                "Build" => "Build outputs",
                 "Media" => [
-                    "Upload" => "User-uploaded files",
                     "Cache" => "Publicly cacheable generated files",
+                    "Upload" => "User-uploaded files",
                 ],
                 "Meta" => "robots.txt, security.txt, humans.txt, manifests",
-                "Build" => "Build outputs",
+                "Theme" => "Theme-specific assets",
             ],
         ],
 
-        "Database" => [
-            "Schema" => "Database structure definitions and DDL",
-            "Seed" => "Initial and test data population scripts",
-            "Fixture" => "Test data sets and factories",
-            "Procedure" => "Stored procedures and functions",
-            "View" => "Database view definitions",
-            "Trigger" => "Database trigger definitions",
-            "Connection" => "Database configuration and connection pools",
-            "Flat" => [
-                "Storage" => "File-based database implementations",
-                "JSON" => "JSON-based document storage",
-                "Serialized" => "PHP serialized data files",
-                "Index" => "Flat file indexing systems",
-            ],
-
-            "Migration" => [
-                "Raw" => "Raw SQL migration",
-                "Programmatic" => "Programmatic migration class",
-            ],
+        "Template" => [
+            "Blade" => "Blade-style templates (optional compatibility)",
+            "Component" => "Self-contained template components",
+            "Email" => "Email template files",
+            "Layout" => "Base template structures",
+            "Partial" => "Reusable template fragments",
+            "View" => "HTML/XML view templates",
         ],
 
         "Test" => [
-            "Unit" => "Self-contained class or function tests",
-            "Integration" => "Tests involving multiple nodes",
             "Contract" => "Interface compliance tests",
-            "E2E" => "Full end-to-end request/response tests",
+            "E2E" => "End-to-end tests",
+            "Feature" => "Feature-level tests",
+            "Integration" => "Tests involving multiple nodes",
+            "Unit" => "Self-contained class or function tests",
         ],
 
-        "Deprecated" => "Files that are considered deprecated.",
-
-        "Log" => [
-            "Internal" => "Application runtime logs",
-            "Access" => "HTTP request logs",
-            "Error" => "Error and exception logs",
-            "Audit" => "Security and audit trails",
+        "Translation" => [
+            "Locale" => "Language-specific translation files",
+            "Validation" => "Validation error translations",
         ],
-
-        "Git" => [
-            "Node" => "Node.php project repository",
-            "Project" => "All excluding the Node.php",
-        ],
-
-        "Backup" => "Zips of backed up states",
     ]);
     # skip_end
 } else {
