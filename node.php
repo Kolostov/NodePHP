@@ -632,6 +632,7 @@ if (!function_exists("f")) {
             "Access" => LOG_PATH . "Access" . D,
             "Error" => LOG_PATH . "Error" . D,
             "Audit" => LOG_PATH . "Audit" . D,
+            "Exception" => LOG_PATH . "Exception" . D,
         ];
 
         $logDir = $logDirs[$logType] ?? $logDirs["Internal"];
@@ -735,7 +736,7 @@ if (!function_exists("f")) {
         $logFiles = [];
 
         // Internal logs from node structure
-        $logTypes = ["Internal", "Access", "Error", "Audit"];
+        $logTypes = ["Internal", "Access", "Error", "Audit", "Exception"];
         foreach ($logTypes as $type) {
             $logDir = LOG_PATH . $type . D;
             if (is_dir($logDir)) {
@@ -981,12 +982,15 @@ if (!function_exists("f")) {
         $parts = explode(D, trim($call, D));
         $parts = array_filter($parts, fn($p) => !empty($p));
 
-        $leaf = end($parts); // e.g., Repository, Command, Controller
-        $type = reset($parts); // e.g., Class, Interface, Function
+        $leaf = end($parts); # e.g., Repository, Command, Controller
+        $type = reset($parts);
+
+        # e.g., Class, Interface, Function
+        $type = $type === "Primitive" ? $parts[1] : $type;
 
         # Skip namespacing functions.
         $namespace =
-            !empty($parts) || $type == "Function"
+            !empty($parts) && $type != "Function"
                 ? "namespace " . implode("\\", array_map("ucfirst", $parts)) . ";\n\n"
                 : "";
 
@@ -2094,7 +2098,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             $rFnC = "r(str logMsg, ?str logType, ?mix return, ?arr|obj ctxData = [])";
             $rFn = "Result logging function\n\t{$rFnC}\n";
-            $logTypes = "LogTypes: [Internal, Access, Audit, Error]\n";
+            $logTypes = "LogTypes: [Internal, Access, Audit, Error, Exception]\n";
 
             return "$r\n\n{$fFn}{$rFn}{$logTypes}";
         }
@@ -2985,6 +2989,451 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
         }
         # cli_migrate end
+
+        # cli_move begin
+        function _node_cli_move(bool $tooltip = false, array $argv = []): string
+        {
+            if ($tooltip) {
+                return "<resource> <name> <new_resource> Moves resource between categories and updates all references.";
+            }
+
+            if (count($argv) < 3) {
+                return "E: Missing arguments, call move <resource> <name> <new_resource>\n";
+            }
+
+            $oldResource = $argv[0];
+            $name = $argv[1];
+            $newResource = $argv[2];
+
+            // Get paths for old and new resources
+            $oldPath = null;
+            $newPath = null;
+            $oldLeaf = null;
+            $newLeaf = null;
+
+            foreach (_node_structure_call() as $structure) {
+                if ($structure[0] === $oldResource) {
+                    $oldPath = $structure[1];
+                    $oldLeaf = basename($structure[0]);
+                }
+                if ($structure[0] === $newResource) {
+                    $newPath = $structure[1];
+                    $newLeaf = basename($structure[0]);
+                }
+            }
+
+            if (!$oldPath) {
+                return "E: Source resource '{$oldResource}' not found.\n";
+            }
+            if (!$newPath) {
+                return "E: Target resource '{$newResource}' not found.\n";
+            }
+
+            // Find the file to move
+            $foundFile = null;
+            $isFunctionFile = false;
+            $files = glob($oldPath . D . "*.php");
+
+            foreach ($files as $file) {
+                $content = file_get_contents($file);
+                $filename = basename($file, ".php");
+
+                // Check for function file (global function at top level)
+                // Look for "function name_" at the start of a line (not indented/in a class)
+                $functionPattern = "/^\s*function\s+{$name}/m";
+                if (preg_match($functionPattern, $content)) {
+                    // Verify it's not inside a class or other structure
+                    $tokens = token_get_all($content);
+                    $inClass = false;
+
+                    foreach ($tokens as $tokenNumber => $token) {
+                        if (is_array($token)) {
+                            if ($token[0] === T_CLASS || $token[0] === T_INTERFACE || $token[0] === T_TRAIT) {
+                                $inClass = true;
+                            } elseif ($token[0] === T_FUNCTION && !$inClass) {
+                                // Check if this is our target function
+                                $nextToken = $tokens[$tokenNumber + 2];
+                                while (is_array($nextToken) && ($nextToken[0] === T_WHITESPACE || $nextToken[0] === T_STRING)) {
+                                    if ($nextToken[0] === T_STRING && str_starts_with($nextToken[1], $name)) {
+                                        $foundFile = $file;
+                                        $currentFilename = $filename;
+                                        $isFunctionFile = true;
+                                        break 3;
+                                    }
+                                    $nextToken = next($tokens);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Look for class/enum/interface/trait declaration
+                $patterns = [
+                    "/\b(class|enum|interface|trait)\s+{$name}(?:{$oldLeaf})?\b/",
+                    "/\b(class|enum|interface|trait)\s+{$name}\b/",
+                ];
+
+                foreach ($patterns as $pattern) {
+                    if (preg_match($pattern, $content)) {
+                        $foundFile = $file;
+                        $currentFilename = $filename;
+                        $isFunctionFile = false;
+                        break 2;
+                    }
+                }
+            }
+
+            if (!$foundFile) {
+                return "E: Could not find '{$name}' in resource '{$oldResource}'.\n";
+            }
+
+            // Determine new filename
+            $currentFilename = basename($foundFile, ".php");
+            $newFilename =
+                (strpos($currentFilename, $oldLeaf) ? str_replace($oldLeaf, "", $currentFilename) : $currentFilename) .
+                $newLeaf;
+
+            $newFilepath = $newPath . D . $newFilename . ".php";
+
+            if (file_exists($newFilepath)) {
+                return "E: Target file '{$newFilepath}' already exists.\n";
+            }
+
+            // Read and update content
+            $content = file_get_contents($foundFile);
+
+            // Get old namespace (if any)
+            $oldNamespace = null;
+            if (!$isFunctionFile && preg_match("/namespace\s+([^\s;]+)/", $content, $matches)) {
+                $oldNamespace = $matches[1];
+            }
+
+            // Calculate new namespace based on new resource path
+            $newNamespace = _node_path_to_namespace($newPath);
+
+            if (!$isFunctionFile) {
+                // For classes/enums/interfaces/traits, update the name
+                $oldNamePattern =
+                    "/\b(class|enum|interface|trait)\s+" . preg_quote($name, "/") . preg_quote($oldLeaf, "/") . "(\s|\{|:)/i";
+                if (preg_match($oldNamePattern, $content)) {
+                    // Replace old name with new name
+                    $newName = $name . $newLeaf;
+                    $content = preg_replace(
+                        "/\b(class|enum|interface|trait)\s+" .
+                            preg_quote($name, "/") .
+                            preg_quote($oldLeaf, "/") .
+                            "(\s|\{|:)/i",
+                        '${1} ' . $newName . '${2}',
+                        $content,
+                    );
+                }
+
+                // Update namespace in file
+                if ($oldNamespace && $newNamespace) {
+                    $content = preg_replace(
+                        "/namespace\s+" . preg_quote($oldNamespace, "/") . "/",
+                        "namespace " . $newNamespace,
+                        $content,
+                    );
+                } elseif ($newNamespace) {
+                    // Add namespace if it didn't have one (but only for non-function files)
+                    $content = preg_replace(
+                        "/<\?php\s*declare\s*\(\s*strict_types\s*=\s*1\s*\)\s*;/",
+                        "<?php declare(strict_types=1);\n\nnamespace {$newNamespace};",
+                        $content,
+                    );
+                }
+            }
+
+            // Move the file
+            if (!rename($foundFile, $newFilepath)) {
+                return "E: Failed to move file from '{$foundFile}' to '{$newFilepath}'.\n";
+            }
+
+            // Write updated content
+            file_put_contents($newFilepath, $content);
+
+            // Update all use statements in the project (skip for functions)
+            $useStatementsUpdated = 0;
+            if (!$isFunctionFile && $oldNamespace) {
+                $oldUseStatement = $oldNamespace . "\\" . $name;
+                $newUseStatement = $newNamespace . "\\" . $name;
+                $useStatementsUpdated = _node_update_use_statements(ROOT_PATH, $oldUseStatement, $newUseStatement);
+            }
+
+            return "✓ Moved '{$name}' from '{$oldResource}' to '{$newResource}'" .
+                ($isFunctionFile ? " [Function]" : "") .
+                "\n" .
+                "  File: " .
+                basename($foundFile) .
+                " → " .
+                basename($newFilepath) .
+                "\n" .
+                (!$isFunctionFile && $oldNamespace ? "  Namespace: {$oldNamespace} → {$newNamespace}\n" : "") .
+                (!$isFunctionFile ? "  Updated {$useStatementsUpdated} use statements\n" : "");
+        }
+
+        /**
+         * Convert filesystem path to PHP namespace
+         */
+        function _node_path_to_namespace(string $path): string
+        {
+            $relativePath = str_replace(ROOT_PATH, "", $path);
+            $relativePath = trim($relativePath, D);
+
+            // Remove special directories
+            $parts = explode(D, $relativePath);
+            $namespaceParts = [];
+
+            foreach ($parts as $part) {
+                $namespaceParts[] = ucfirst($part);
+            }
+
+            return implode("\\", $namespaceParts);
+        }
+
+        /**
+         * Update use statements across all PHP files
+         */
+        function _node_update_use_statements(string $rootPath, string $oldUse, string $newUse): int
+        {
+            $updatedCount = 0;
+            $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($rootPath));
+
+            foreach ($iterator as $file) {
+                if (!$file->isFile() || $file->getExtension() !== "php") {
+                    continue;
+                }
+
+                // Skip vendor directories
+                if (strpos($file->getPathname(), D . "vendor" . D) !== false) {
+                    continue;
+                }
+
+                $content = file_get_contents($file->getPathname());
+
+                // Pattern to match use statements (handles multiple on one line)
+                $pattern = "/(^|\s)use\s+" . preg_quote($oldUse, "/") . "\s*(?:as\s+[^;]+)?\s*;/m";
+
+                if (preg_match($pattern, $content)) {
+                    $newContent = preg_replace($pattern, '${1}use ' . $newUse . ";", $content);
+
+                    if ($newContent !== $content) {
+                        file_put_contents($file->getPathname(), $newContent);
+                        $updatedCount++;
+                    }
+                }
+
+                // Also update fully qualified class names in code
+                $fqcnPattern = "/\\\\(?:" . preg_quote($oldUse, "/") . ")(?!\w)/";
+                $newContent = preg_replace($fqcnPattern, "\\" . $newUse, $content);
+
+                if ($newContent !== $content) {
+                    file_put_contents($file->getPathname(), $newContent);
+                    $updatedCount++;
+                }
+            }
+
+            return $updatedCount;
+        }
+
+        /**
+         * Test function for _node_cli_move
+         */
+        function test_node_cli_move(): int
+        {
+            // First create a test file to move
+            $sourceResource = "State";
+            $targetResource = "Type";
+            $name = "TestMove";
+
+            // Create test file in State directory
+            $structures = _node_structure_call();
+            $sourcePath = null;
+            $targetPath = null;
+
+            foreach ($structures as $structure) {
+                if ($structure[0] === $sourceResource) {
+                    $sourcePath = $structure[1];
+                }
+                if ($structure[0] === $targetResource) {
+                    $targetPath = $structure[1];
+                }
+            }
+
+            if (!$sourcePath || !$targetPath) {
+                return 1;
+            }
+
+            // Create test enum file
+            $testFileContent = <<<PHP
+            <?php declare(strict_types=1);
+
+            namespace Primitive\\Enum\\State;
+
+            enum TestMoveState: string
+            {
+                case ACTIVE = 'active';
+                case INACTIVE = 'inactive';
+            }
+            PHP;
+
+            $sourceFile = $sourcePath . D . "TestMoveState.php";
+            file_put_contents($sourceFile, $testFileContent);
+
+            // Test the move function
+            $result = _node_cli_move(false, [$sourceResource, $name, $targetResource]);
+
+            if (str_starts_with($result, "E:")) {
+                unlink($sourceFile);
+                var_dump($result);
+                return 2;
+            }
+
+            // Check if file was moved
+            $expectedTargetFile = $targetPath . D . "TestMoveType.php";
+            if (!file_exists($expectedTargetFile)) {
+                return 3;
+            }
+
+            // Check namespace was updated
+            $movedContent = file_get_contents($expectedTargetFile);
+            if (strpos($movedContent, "namespace Primitive\\Enum\\Type") === false) {
+                unlink($expectedTargetFile);
+                return 4;
+            }
+
+            // Check enum name was updated
+            if (strpos($movedContent, "enum TestMoveType:") === false) {
+                unlink($expectedTargetFile);
+                return 5;
+            }
+
+            // Test error cases
+            $missingArgs = _node_cli_move(false, []);
+            if (!str_starts_with($missingArgs, "E: Missing arguments")) {
+                unlink($expectedTargetFile);
+                return 6;
+            }
+
+            $invalidSource = _node_cli_move(false, ["Invalid", $name, $targetResource]);
+            if (!str_starts_with($invalidSource, "E: Source resource")) {
+                unlink($expectedTargetFile);
+                return 7;
+            }
+
+            $invalidTarget = _node_cli_move(false, [$sourceResource, $name, "Invalid"]);
+            if (!str_starts_with($invalidTarget, "E: Target resource")) {
+                unlink($expectedTargetFile);
+                return 8;
+            }
+
+            $notFound = _node_cli_move(false, [$sourceResource, "NonExistentName", $targetResource]);
+            if (!str_starts_with($notFound, "E: Could not find")) {
+                unlink($expectedTargetFile);
+                return 9;
+            }
+
+            // Test tooltip
+            $tooltip = _node_cli_move(true, []);
+            if (strpos($tooltip, "<resource> <name> <new_resource>") === false) {
+                unlink($expectedTargetFile);
+                return 10;
+            }
+
+            // Cleanup
+            unlink($expectedTargetFile);
+
+            return 0;
+        }
+
+        function _node_cli_move_all(bool $tooltip = false, array $argv = []): string
+        {
+            if ($tooltip) {
+                return "<resource> <new_resource> Moves ALL resources from one category to another.";
+            }
+
+            if (count($argv) < 2) {
+                return "E: Missing arguments, call move_all <resource> <new_resource>\n";
+            }
+
+            $oldResource = $argv[0];
+            $newResource = $argv[1];
+
+            // Get paths for old and new resources
+            $oldPath = null;
+            $newPath = null;
+
+            foreach (_node_structure_call() as $structure) {
+                if ($structure[0] === $oldResource) {
+                    $oldPath = $structure[1];
+                }
+                if ($structure[0] === $newResource) {
+                    $newPath = $structure[1];
+                }
+            }
+
+            if (!$oldPath) {
+                return "E: Source resource '{$oldResource}' not found.\n";
+            }
+            if (!$newPath) {
+                return "E: Target resource '{$newResource}' not found.\n";
+            }
+
+            // Get all PHP files in the old resource directory
+            $files = glob($oldPath . D . "*.php");
+            if (empty($files)) {
+                return "ℹ No files found in resource '{$oldResource}'.\n";
+            }
+
+            $movedCount = 0;
+            $errors = [];
+            $output = "";
+
+            foreach ($files as $file) {
+                // Extract the base name without extension
+                $filename = basename($file, ".php");
+
+                // Remove the leaf suffix if present
+                $oldLeaf = basename($oldResource);
+                $name = $filename;
+
+                // Check if filename ends with the old leaf
+                if (preg_match("/^(.*?)" . preg_quote($oldLeaf, "/") . "$/i", $filename, $matches)) {
+                    $name = $matches[1];
+                }
+
+                // Skip empty names
+                if (empty($name)) {
+                    continue;
+                }
+
+                // Call move function for this file
+                $result = _node_cli_move(false, [$oldResource, $name, $newResource]);
+
+                // Check if it was successful
+                if (str_starts_with($result, "✓")) {
+                    $movedCount++;
+                    $output .= $result . "\n";
+                } else {
+                    $errors[] = "Failed to move '{$name}': " . trim($result);
+                }
+            }
+
+            // Build final output
+            $summary = "Moved {$movedCount} of " . count($files) . " files from '{$oldResource}' to '{$newResource}'\n";
+
+            if (!empty($errors)) {
+                $summary .= "Errors:\n" . implode("\n", $errors) . "\n";
+            }
+
+            if ($movedCount > 0) {
+                $summary .= "\n" . $output;
+            }
+
+            return $summary;
+        }
+        # cli_move end
 
         # cli_new begin
         function _node_cli_new(bool $tooltip = false, array $argv = []): string
