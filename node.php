@@ -621,12 +621,8 @@ if (!function_exists("f")) {
     # f end
 
     # r begin
-    function r(
-        string $logMessage,
-        string $logType = "Internal",
-        mixed $return = null,
-        null|array|object $dataArray = null,
-    ): mixed {
+    function r(string $logMessage, string $type = "Internal", mixed $return = null, null|array|object $data = null): mixed
+    {
         static $logDirs = [
             "Internal" => LOG_PATH . "Internal" . D,
             "Access" => LOG_PATH . "Access" . D,
@@ -635,7 +631,7 @@ if (!function_exists("f")) {
             "Exception" => LOG_PATH . "Exception" . D,
         ];
 
-        $logDir = $logDirs[$logType] ?? $logDirs["Internal"];
+        $logDir = $logDirs[$type] ?? $logDirs["Internal"];
 
         $date = date("Y-m-d");
         $logFile = "{$logDir}{$date}.log";
@@ -647,12 +643,12 @@ if (!function_exists("f")) {
 
         $entry = [
             "timestamp" => date("Y-m-d H:i:s"),
-            "type" => $logType,
+            "type" => $type,
             "file" => str_replace(ROOT_PATH, "", $file),
             "line" => $line,
             "function" => $caller,
             "message" => $logMessage,
-            "data" => $dataArray ? (array) $dataArray : null,
+            "data" => $data ? (array) $data : null,
             "result" => $return,
         ];
 
@@ -678,6 +674,65 @@ if (!function_exists("f")) {
         return $return;
     }
     # r end
+
+    # h begin
+    /**
+     * @param ?string $name Hook name for runnig or registration.
+     * @param mixed $arg Hook function or argument to run registred hooks as filters.
+     */
+    function h(?string $name, mixed $arg = null): mixed
+    {
+        static $hooks = [];
+
+        if ($name === null) {
+            return array_map("count", $hooks);
+        }
+
+        if (is_callable($arg)) {
+            $hooks[$name][] = $arg;
+            return true;
+        }
+
+        if (!isset($hooks[$name])) {
+            return $arg;
+        }
+
+        if ($arg === null) {
+            foreach ($hooks[$name] as $fn) {
+                try {
+                    $fn();
+                } catch (Throwable $e) {
+                    r($e->getMessage(), "Exception", null, [
+                        "exception" => get_class($e),
+                        "code" => $e->getCode(),
+                        "file" => $e->getFile(),
+                        "line" => $e->getLine(),
+                        "trace" => $e->getTraceAsString(),
+                        "hook" => $name,
+                    ]);
+                }
+            }
+            return null;
+        }
+
+        foreach ($hooks[$name] as $fn) {
+            try {
+                $arg = $fn($arg);
+            } catch (Throwable $e) {
+                r($e->getMessage(), "Exception", $arg, [
+                    "exception" => get_class($e),
+                    "code" => $e->getCode(),
+                    "file" => $e->getFile(),
+                    "line" => $e->getLine(),
+                    "trace" => $e->getTraceAsString(),
+                    "hook" => $name,
+                ]);
+            }
+        }
+
+        return $arg;
+    }
+    # h end
 
     # log_read_file begin
     function _node_log_read_file(string $path): array
