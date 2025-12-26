@@ -1114,8 +1114,7 @@ if (!function_exists("f")) {
                     => "\n{\n\tprivate static ?self \$instance = null;\n\n\tprivate function __construct() {}\n\tprivate function __clone() {}\n\tpublic function __wakeup() {}\n\n\tpublic static function getInstance(): self\n\t{\n\t\tif (self::\$instance === null) {\n\t\t\tself::\$instance = new self();\n\t\t}\n\t\treturn self::\$instance;\n\t}\n}\n",
                 "Timestampable"
                     => "\n{\n\tprivate ?\DateTimeInterface \$createdAt = null;\n\tprivate ?\DateTimeInterface \$updatedAt = null;\n\n\tpublic function getCreatedAt(): ?\DateTimeInterface\n\t{\n\t\treturn \$this->createdAt;\n\t}\n\n\tpublic function getUpdatedAt(): ?\DateTimeInterface\n\t{\n\t\treturn \$this->updatedAt;\n\t}\n\n\tpublic function setCreatedAt(\DateTimeInterface \$date): void\n\t{\n\t\t\$this->createdAt = \$date;\n\t}\n\n\tpublic function setUpdatedAt(\DateTimeInterface \$date): void\n\t{\n\t\t\$this->updatedAt = \$date;\n\t}\n}\n",
-                "SoftDeletes"
-                    => "\n{\n\tprivate ?\DateTimeInterface \$deletedAt = null;\n\n\tpublic function getDeletedAt(): ?\DateTimeInterface\n\t{\n\t\treturn \$this->deletedAt;\n\t}\n\n\tpublic function setDeletedAt(?\DateTimeInterface \$date): void\n\t{\n\t\t\$this->deletedAt = \$date;\n\t}\n\n\tpublic function isDeleted(): bool\n\t{\n\t\treturn \$this->deletedAt !== null;\n\t}\n}\n",
+                "SoftDeletes" => "\n{\n\tpublic function delete(int \$id): int\n\t{\n\t\treturn 0;\n\t}\n}\n",
                 default => "\n{\n\t# TODO: Implement trait methods\n}\n",
             },
             # Functions
