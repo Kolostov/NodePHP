@@ -905,8 +905,6 @@ if (!function_exists("f")) {
 
         function _node_structure_deploy(?array $NODE_STRUCTURE = null): void
         {
-            _node_clean_empty_dirs(ROOT_PATH);
-
             _node_structure_walk(
                 $NODE_STRUCTURE ?? NODE_STRUCTURE,
                 function (string $path): string {
@@ -3239,7 +3237,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         function _node_cli_move(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
-                return "<resource> <name> <new_resource> Moves resource between categories and updates all references.";
+                return "<resource> <name> <new_resource> Moves resource.";
             }
 
             if (count($argv) < 3) {
@@ -3595,7 +3593,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         function _node_cli_move_all(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
-                return "<resource> <new_resource> Moves ALL resources from one category to another.";
+                return "<resource> <new_resource> Moves ALL resources.";
             }
 
             if (count($argv) < 2) {
@@ -5069,6 +5067,20 @@ if ($LOCAL_PATH === ROOT_PATH) {
         }
         # metric_if_else_balance end
         # cli_rank end
+
+        # cli_restructure begin
+        function _node_cli_restructure(bool $tooltip = false, array $argv = []): string
+        {
+            if ($tooltip) {
+                return "<void> Deletes empty folders, recreates schema.";
+            }
+
+            _node_clean_empty_dirs(ROOT_PATH);
+            _node_structure_deploy();
+
+            return "Done.\n";
+        }
+        # cli_restructure end
 
         # cli_search begin
         function _node_cli_search(bool $tooltip = false, array $argv = []): string
