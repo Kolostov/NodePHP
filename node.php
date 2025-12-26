@@ -161,6 +161,7 @@ if (!defined("NODE_NAME")) {
                     ],
                     "Infrastructure" => [
                         "Database" => "Database integration base",
+                        "DTO" => "Data Transmission Object extendables",
                         "Migration" => "Abstract migration base",
                         "Transport" => "Communication transport base",
                         "Cache" => "Caching mechanism base",
