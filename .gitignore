@@ -5,3 +5,6 @@
 !node
 !README.md
 !.gitignore
+
+# Keep documentations for node internals
+!Docs/Node/*

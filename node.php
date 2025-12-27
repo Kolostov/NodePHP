@@ -62,7 +62,9 @@ if (!defined("NODE_NAME")) {
 
         "Deprecated" => "Deprecated files and structures",
 
-        "Docs" => "Documentation and guides",
+        "Docs" => [
+            "Node" => "Documentation and guides for internal functionality",
+        ],
 
         "Extension" => [
             "Hook" => "Action/filter hooks",
@@ -2231,7 +2233,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_emit begin
         function _node_cli_emit(bool $tooltip = false, array $argv = []): string
         {
-            $noState = empty($argv[0] ?? "");
+            $noState = !$tooltip && empty($argv[0] ?? "");
 
             if ($tooltip || $noState) {
                 return "<state> States: full, runtime, include" . ($noState ? "\n" : "");
@@ -2546,10 +2548,33 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_help end
 
         # cli_info begin
+        /**
+         * @var array $ROOT_PATHS declared in node when including subnodes.
+         *
+         */
+
         function _node_cli_info(bool $tooltip = false, array $argv = []): string
         {
             if ($tooltip) {
-                return "<void> Shows node system information.";
+                return "<void|resource|func|class> Shows system information.";
+            }
+
+            if (isset($argv[0])) {
+                # All docs area always lowercase
+                $argv[0] = strtolower($argv[0]);
+
+                # Try Node internal documentation
+                if ($doc = f("Docs" . D . "Node" . D . "{$argv[0]}.md", "read", null, false)) {
+                    return $doc;
+                }
+
+                # Try project documentation.
+                if ($doc = f("Docs" . D . "{$argv[0]}.md", "read", null, false)) {
+                    return $doc;
+                }
+
+                # Nothing found.
+                return "No documentation found for {$argv[0]}.md\n";
             }
 
             $info = [];
