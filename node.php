@@ -321,6 +321,7 @@ if (!function_exists("_node_min")) {
         $path ??= realpath(__DIR__) . D;
         $sourceFile = "{$path}{$target}";
 
+        # Keep this file_get_contents as is (do not override with f(...) due to it being out of inclusion section).
         $source = file_get_contents($sourceFile);
 
         if ($sfx === "include") {
@@ -425,6 +426,7 @@ if (!function_exists("_node_min")) {
 
         $name = ($file["dirname"] !== "." ? $file["dirname"] . D : "") . $file["filename"];
 
+        # Important: keep this to file_put_contents (do not overwrite with f(...) due to it being out of include sect.)
         return !empty($o) && file_put_contents("{$p}{$name}.{$s}.{$ext}", $o) !== false ? 0 : 1;
     }
 
@@ -593,8 +595,12 @@ if (ROOT_PATH !== $LOCAL_PATH) {
 # Safeguard redeclaration of these functions from PHP compiler.
 if (!function_exists("f")) {
     # r begin
-    function r(string $logMessage, string $type = "Internal", mixed $return = null, null|array|object $data = null): mixed
-    {
+    function r(
+        string $logMessage,
+        string $type = "Internal",
+        mixed $return = null,
+        null|array|object $data = null,
+    ): mixed {
         static $logDirs = [
             "Internal" => LOG_PATH . "Internal" . D,
             "Access" => LOG_PATH . "Access" . D,
@@ -652,7 +658,7 @@ if (!function_exists("f")) {
      * @param string $fn Complete path to file.
      * @param string $action Which file action to preform, find by default.
      * @param string $arg An argument for action, null by default.
-     * @param string $critical Die if file does not exist.
+     * @param string $critical Throws if file does not exist.
      *
      * @return string Real path.
      */
@@ -700,10 +706,8 @@ if (!function_exists("f")) {
             }
         }
 
-        # Die early if critical file cannot be targeted.
-        if ($real_path === null && $critical) {
-            die("Error: function f() cannot find file: {$fn}");
-        }
+        # Throw early if critical file cannot be targeted.
+        $real_path ?? ($critical ? throw new RuntimeException("File not found: {$fn}") : null);
 
         # If we're just finding targeted file or the targeted file cannot
         # proceed with any operation (it being null) return real_path as value.
@@ -776,16 +780,14 @@ if (!function_exists("f")) {
                 }
                 # Nothing could be deleted.
                 return null;
+            case "read":
             default:
-                break;
+                return file_get_contents($real_path);
         }
-
-        return $real_path;
     }
     # f end
 
     # p begin
-    #[AllowDynamicProperties]
     class Context {}
 
     /**
@@ -806,11 +808,49 @@ if (!function_exists("f")) {
             $state = [],
             $backups = [];
 
+        # Phase cursor.
+        static $cursor = -1;
+
         # Order of phases and the list of available phases.
         static $order = ["boot", "discover", "transpilate", "resolve", "execute", "mutate", "persist", "finalize"];
 
-        if ($phase === null) {
+        # List all available phases in order of execution.
+        if ($phase === "order") {
+            return $order;
+        }
+
+        # Dump phase orchestrator.
+        if ($phase === "dump") {
+            return ["phases" => $phases, "state" => $state, "backups" => $backups, "cursor" => $cursor];
+        }
+
+        # Try to target evolution to given phase.
+        if ($phase !== null) {
+            # Decide the name from given index or given name.
+            $targetName = is_int($phase) ? $order[$phase] ?? null : $phase;
+
+            # Invalid phase?
+            if ($targetName === null || !in_array($targetName, $order)) {
+                throw new InvalidArgumentException("Unknown phase: {$phase}");
+            }
+        }
+
+        if ($phase === null || ($targetName && $action === null)) {
+            # We got name w/o action or we have no phase (targeting entire run).
+            $targetIndex = isset($targetName) ? array_search($targetName, $order) : null;
+
+            # Trying to run phase that's already processed.
+            if (isset($targetName) && $targetIndex <= $cursor) {
+                return $state;
+            }
+
             foreach ($order as $index => $name) {
+                # Skipping all processed and empty/unutilized phases.
+                if ($index <= $cursor || empty($phases[$name] ?? [])) {
+                    continue;
+                }
+
+                # Begin processing.
                 $copy = $state;
 
                 # New context for each phase context.
@@ -832,70 +872,35 @@ if (!function_exists("f")) {
                     $backups[$name] = $state;
                 } catch (Throwable $e) {
                     f("rollback");
-                    for ($i = $index; $i >= 0; $i--) {
-                        $state = $backups[$order[$i - 1]] ?? [];
-                    }
+                    # Set previous state to current phase.
+                    $state = $backups[$order[$index - 1]] ?? [];
+
+                    # Log error.
                     r("Phase {$name} failed: " . $e->getMessage(), "Exception", false, [
                         "phase" => $name,
                         "state" => $state,
                     ]);
+
+                    # Throw runtime.
                     throw new RuntimeException("Phase {$name} failed", 0, $e);
                 }
+
+                # Set cursor to have done this index.
+                $cursor = $index;
+
+                # Check if we have just processed our desired target phase.
+                if ($targetIndex !== null && $index === $targetIndex) {
+                    break;
+                }
             }
+
+            # Phase reached.
             return $state;
-        }
-
-        # Decide the name from given index or given name.
-        $name = is_int($phase) ? $order[$phase] ?? null : $phase;
-
-        # Invalid phase?
-        if ($name === null || !in_array($name, $order)) {
-            throw new InvalidArgumentException("Unknown phase: {$phase}");
-        }
-
-        # Run given phase if no action given.
-        if ($action === null) {
-            if (!isset($phases[$name])) {
-                throw new InvalidArgumentException("Unknown phase: $name");
-            }
-            $copy = $state;
-            $phaseIndex = array_search($name, $order);
-
-            try {
-                # New context for this phase called.
-                $context = new Context();
-
-                # Give extract $copy to $handler closure via $this
-                array_map(fn($k) => ($context->{$k} = $copy[$k]), array_keys($copy));
-
-                # Run all handlers in this phase.
-                foreach ($phases[$name] as $handler) {
-                    $boundFunc = $handler->bindTo($context, Context::class);
-                    $handlerResult = (array) ($boundFunc($name, $copy) ?? []);
-
-                    if ($handlerResult !== null && !empty($handlerResult)) {
-                        $copy = [...$copy, ...$handlerResult];
-                    }
-                }
-                $state = $copy;
-                $backups[$name] = $state;
-            } catch (Throwable $e) {
-                f("rollback");
-                for ($i = $phaseIndex; $i >= 0; $i--) {
-                    $state = $backups[$order[$i - 1]] ?? [];
-                }
-                r("Phase '$name' failed: " . $e->getMessage(), "Exception", false, [
-                    "phase" => $name,
-                    "state" => $state,
-                ]);
-                throw $e;
-            }
-            return $copy;
         }
 
         # Set action inside phase if it is a string or callable.
         if ($action instanceof Closure || is_callable($action)) {
-            $phases[$name][] = $action;
+            $phases[$targetName][] = $action;
 
             # Closure set.
             return true;
@@ -905,14 +910,14 @@ if (!function_exists("f")) {
             # If requested file was not found, throw softly without immediate die.
             if ($file === null) {
                 # Log.
-                r("Phase file not found: $action.php", "Exception", false, ["phase" => $name, "file" => $action]);
+                r("Phase file not found: $action.php", "Exception", false, ["phase" => $targetName, "file" => $action]);
 
                 # Throw.
                 throw new RuntimeException("Phase file not found: $action.php");
             }
 
             # File inclusion given.
-            $phases[$name][] = function ($name, &$copy) use ($file) {
+            $phases[$targetName][] = function ($name, &$copy) use ($file) {
                 # Actual file to run.
                 include_once $file;
 
@@ -1409,7 +1414,8 @@ if (!function_exists("f")) {
             },
             # Traits
             $type === "Trait" => match ($leaf) {
-                "Singleton" => "\n{\n\tpublic static function getInstance(): self\n\t{\n\t\treturn new self();\n\t}\n}\n",
+                "Singleton"
+                    => "\n{\n\tpublic static function getInstance(): self\n\t{\n\t\treturn new self();\n\t}\n}\n",
                 "Timestampable" => "\n{\n\tpublic function getCreatedAt(): mixed\n\t{\n\t\treturn null;\n\t}\n}\n",
                 "SoftDeletes" => "\n{\n\tpublic function delete(): int\n\t{\n\t\treturn 0;\n\t}\n}\n",
                 default => "\n{\n\t# TODO: Implement trait methods\n}\n",
@@ -2248,72 +2254,69 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $action = $argv[0] ?? "list";
             $envFile = ROOT_PATH . ".env";
 
-            if (!file_exists($envFile)) {
-                file_put_contents($envFile, "# Environment variables\n");
-            }
-
-            switch ($action) {
-                case "list":
-                    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-                    $output = "Environment variables:\n";
-                    foreach ($lines as $line) {
-                        if (!str_starts_with($line, "#")) {
-                            $output .= "{$line}\n";
+            if (!file_exists($envFile) && f($envFile, "write", "# Environment variables\n")) {
+                switch ($action) {
+                    case "list":
+                        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                        $output = "Environment variables:\n";
+                        foreach ($lines as $line) {
+                            if (!str_starts_with($line, "#")) {
+                                $output .= "{$line}\n";
+                            }
                         }
-                    }
-                    return $output;
+                        return $output;
 
-                case "set":
-                    if (count($argv) < 2) {
-                        return "E: Usage: env set KEY = VALUE\n";
-                    }
-
-                    $keyValue = $argv[1];
-                    if (strpos($keyValue, "=") === false) {
-                        return "E: Invalid format. Use KEY = VALUE\n";
-                    }
-
-                    [$key, $value] = explode("=", $keyValue, 2);
-                    $key = trim($key);
-                    $value = trim($value);
-
-                    $lines = file($envFile, FILE_IGNORE_NEW_LINES);
-                    $found = false;
-
-                    foreach ($lines as &$line) {
-                        if (str_starts_with($line, "{$key}=")) {
-                            $line = "{$key}={$value}";
-                            $found = true;
-                            break;
+                    case "set":
+                        if (count($argv) < 2) {
+                            return "E: Usage: env set KEY = VALUE\n";
                         }
-                    }
 
-                    if (!$found) {
-                        $lines[] = "{$key}={$value}";
-                    }
-
-                    file_put_contents($envFile, implode("\n", $lines));
-                    return "Set {$key}={$value}\n";
-
-                case "get":
-                    if (count($argv) < 2) {
-                        return "E: Usage: env get KEY\n";
-                    }
-
-                    $key = $argv[1];
-                    $lines = file($envFile, FILE_IGNORE_NEW_LINES);
-
-                    foreach ($lines as $line) {
-                        if (str_starts_with($line, $key . "=")) {
-                            [, $value] = explode("=", $line, 2);
-                            return "{$key}={$value}\n";
+                        $keyValue = $argv[1];
+                        if (strpos($keyValue, "=") === false) {
+                            return "E: Invalid format. Use KEY = VALUE\n";
                         }
-                    }
 
-                    return "E: Key '{$key}' not found\n";
+                        [$key, $value] = explode("=", $keyValue, 2);
+                        $key = trim($key);
+                        $value = trim($value);
 
-                default:
-                    return "E: Unknown action. Available: list, set, get\n";
+                        $lines = file($envFile, FILE_IGNORE_NEW_LINES);
+                        $found = false;
+
+                        foreach ($lines as &$line) {
+                            if (str_starts_with($line, "{$key}=")) {
+                                $line = "{$key}={$value}";
+                                $found = true;
+                                break;
+                            }
+                        }
+
+                        if (!$found) {
+                            $lines[] = "{$key}={$value}";
+                        }
+                        return f($envFile, "write", implode("\n", $lines))
+                            ? "Set {$key}={$value}\n"
+                            : "E: Writing lines";
+
+                    case "get":
+                        if (count($argv) < 2) {
+                            return "E: Usage: env get KEY\n";
+                        }
+
+                        $key = $argv[1];
+                        $lines = file($envFile, FILE_IGNORE_NEW_LINES);
+
+                        foreach ($lines as $line) {
+                            if (str_starts_with($line, "{$key}=")) {
+                                [, $value] = explode("=", $line, 2);
+                                return "{$key}={$value}\n";
+                            }
+                        }
+                        return "E: Key '{$key}' not found\n";
+
+                    default:
+                        return "E: Unknown action. Available: list, set, get\n";
+                }
             }
         }
 
@@ -2326,10 +2329,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $backup = file_get_contents($envFile);
             }
 
-            file_put_contents($envFile, "# Environment variables\nTEST_KEY=test_value\nANOTHER_KEY=another_value\n");
+            f($envFile, "write", "# Environment variables\nTEST_KEY=test_value\nANOTHER_KEY=another_value\n");
 
             if (str_starts_with(_node_cli_env(true, []), "<action>") === false) {
-                file_put_contents($envFile, $backup);
+                f($envFile, "write", $backup);
                 return 1;
             }
 
@@ -2338,56 +2341,48 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 strpos($listResult, "TEST_KEY=test_value") === false ||
                 strpos($listResult, "ANOTHER_KEY=another_value") === false
             ) {
-                file_put_contents($envFile, $backup);
+                f($envFile, "write", $backup);
                 return 2;
             }
 
             $setResult = _node_cli_env(false, ["set", "TEST_KEY=new_value"]);
             if (strpos($setResult, "Set TEST_KEY=new_value") === false) {
-                file_put_contents($envFile, $backup);
-                return 3;
+                return f($envFile, "write", $backup) ? 3 : -3;
             }
 
             $getResult = _node_cli_env(false, ["get", "TEST_KEY"]);
             if ($getResult !== "TEST_KEY=new_value\n") {
-                file_put_contents($envFile, $backup);
-                return 4;
+                return f($envFile, "write", $backup) ? 4 : -4;
             }
 
             $setNewResult = _node_cli_env(false, ["set", "NEW_KEY=new_value_123"]);
             if (strpos($setNewResult, "Set NEW_KEY=new_value_123") === false) {
-                file_put_contents($envFile, $backup);
-                return 5;
+                return f($envFile, "write", $backup) ? 5 : -5;
             }
 
             $listResult2 = _node_cli_env(false, ["list"]);
             if (strpos($listResult2, "NEW_KEY=new_value_123") === false) {
-                file_put_contents($envFile, $backup);
-                return 6;
+                return f($envFile, "write", $backup) ? 6 : -6;
             }
 
             $missingKeyResult = _node_cli_env(false, ["get", "MISSING_KEY"]);
             if (strpos($missingKeyResult, "E: Key 'MISSING_KEY' not found") === false) {
-                file_put_contents($envFile, $backup);
-                return 7;
+                return f($envFile, "write", $backup) ? 7 : -7;
             }
 
             $invalidSetResult = _node_cli_env(false, ["set"]);
             if (strpos($invalidSetResult, "E: Usage: env set KEY = VALUE") === false) {
-                file_put_contents($envFile, $backup);
-                return 8;
+                return f($envFile, "write", $backup) ? 8 : -8;
             }
 
             $invalidFormatResult = _node_cli_env(false, ["set", "NO_EQUALS_SIGN"]);
             if (strpos($invalidFormatResult, "E: Invalid format. Use KEY = VALUE") === false) {
-                file_put_contents($envFile, $backup);
-                return 9;
+                return f($envFile, "write", $backup) ? 9 : -9;
             }
 
             $invalidGetResult = _node_cli_env(false, ["get"]);
             if (strpos($invalidGetResult, "E: Usage: env get KEY") === false) {
-                file_put_contents($envFile, $backup);
-                return 10;
+                return f($envFile, "write", $backup) ? 10 : -10;
             }
 
             $unknownActionResult = _node_cli_env(false, ["unknown"]);
@@ -2525,7 +2520,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             $fFn = !empty($argv[0]) ? "File path resolution & mutation tracker function\n\t" : "";
             $fFnC = "f(str path, ?str action = find, ?str arg, ?bool critical = true):mix";
-            $actions = !empty($argv[0]) ? "\n\tactions: [find, write, delete, copy, move]\n" : "";
+            $actions = !empty($argv[0]) ? "\n\tactions: [find, read, write, delete, copy, move]\n" : "";
 
             $fFunc = "{$fFn}{$fFnC}{$actions}\n";
 
@@ -3497,7 +3492,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                             } elseif ($token[0] === T_FUNCTION && !$inClass) {
                                 // Check if this is our target function
                                 $nextToken = $tokens[$tokenNumber + 2];
-                                while (is_array($nextToken) && ($nextToken[0] === T_WHITESPACE || $nextToken[0] === T_STRING)) {
+                                while (
+                                    is_array($nextToken) &&
+                                    ($nextToken[0] === T_WHITESPACE || $nextToken[0] === T_STRING)
+                                ) {
                                     if ($nextToken[0] === T_STRING && str_starts_with($nextToken[1], $name)) {
                                         $foundFile = $file;
                                         $currentFilename = $filename;
@@ -3558,7 +3556,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
             if (!$isFunctionFile) {
                 // For classes/enums/interfaces/traits, update the name
                 $oldNamePattern =
-                    "/\b(class|enum|interface|trait)\s+" . preg_quote($name, "/") . preg_quote($oldLeaf, "/") . "(\s|\{|:)/i";
+                    "/\b(class|enum|interface|trait)\s+" .
+                    preg_quote($name, "/") .
+                    preg_quote($oldLeaf, "/") .
+                    "(\s|\{|:)/i";
                 if (preg_match($oldNamePattern, $content)) {
                     // Replace old name with new name
                     $newName = $name . $newLeaf;
@@ -5864,6 +5865,17 @@ if ($LOCAL_PATH === ROOT_PATH) {
         }
         # cli_wrap end
 
+        # Set default phase indicator
+        $NODE_PHASE = "phaseless";
+
+        if (isset($argv[1]) && in_array($argv[1], p("order"))) {
+            $argv = array_slice($argv, 1);
+            $NODE_PHASE = $argv[0];
+
+            # Run up until phase.
+            p($NODE_PHASE);
+        }
+
         # Check if any argument got set over CLI.
         if (isset($argv[1]) && ($cli_func = "_node_cli_{$argv[1]}")) {
             if (function_exists($cli_func)) {
@@ -5878,10 +5890,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
         $u = microtime(true) - $TIME_START;
         $m = memory_get_peak_usage() / 1048576;
 
-        $title = NODE_NAME . " // PHP " . PHP_VERSION;
+        $title = NODE_NAME . "@{$NODE_PHASE} // PHP " . PHP_VERSION;
         printf("{$title}, Time: %.4fs, RAM: %.2fMB", $u, $m);
 
-        unset($TIME_START, $u, $m, $title);
+        unset($TIME_START, $ROOT_PATHS, $NODE_PHASE, $u, $m, $title);
 
         echo ", Global variables: [" .
             implode(
@@ -5889,9 +5901,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 array_diff(array_keys(get_defined_vars()), [...["r", "__composer_autoload_files"], ...SUPERGLOBALS]),
             ) .
             "]\n\n";
-
-        unset($ROOT_PATHS);
         echo ($r ?? "NODE CLI: NULL") . "\n";
+    } else {
+        # Run all phases.
+        p();
     }
 
     /**
@@ -5899,9 +5912,6 @@ if ($LOCAL_PATH === ROOT_PATH) {
      */
 
     serialize($_INITIAL_ENV) != serialize($_ENV) &&
-        file_put_contents(
-            "{$LOCAL_PATH}.env",
-            implode("\n", array_map(fn($x) => "{$x}={$_ENV[$x]}", array_keys($_ENV))),
-        );
+        f("{$LOCAL_PATH}.env", "write", implode("\n", array_map(fn($x) => "{$x}={$_ENV[$x]}", array_keys($_ENV))));
 }
 # skip_end
