@@ -2,8 +2,8 @@
 
 **Version:** 0.1 pre-Alpha<br/>
 **Author:** Joonas Kolostov<br/>
-**BCN Address for donations:** 21TEDpBhfRBigtt2XJ7yBRLrA9CrjMFcAZVEfHcesfK2PuDLE7ZBpU5fNCezqRpKfLJf5dmANoy6uA2bGtZ3uT5fJN67BBd<br/>
 **PHP:** 8.5+<br/>
+**BCN Address for donations:** 21TEDpBhfRBigtt2XJ7yBRLrA9CrjMFcAZVEfHcesfK2PuDLE7ZBpU5fNCezqRpKfLJf5dmANoy6uA2bGtZ3uT5fJN67BBd<br/>
 
 ---
 
