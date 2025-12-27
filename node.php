@@ -2231,8 +2231,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # cli_emit begin
         function _node_cli_emit(bool $tooltip = false, array $argv = []): string
         {
-            if ($tooltip) {
-                return "<state> States: full, runtime, include";
+            $noState = empty($argv[0] ?? "");
+
+            if ($tooltip || $noState) {
+                return "<state> States: full, runtime, include" . ($noState ? "\n" : "");
             }
 
             return match ($argv[0]) {
