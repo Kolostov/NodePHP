@@ -1649,13 +1649,12 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $excludeFile = "{$backupDir}exclude.txt";
             $excludes = ["Backup", "Log", "Deprecated", "vendor", "node_modules"];
 
-            file_put_contents($excludeFile, implode("\n", $excludes));
+            f($excludeFile, "write", implode("\n", $excludes));
 
             $currentDir = getcwd();
             chdir(ROOT_PATH);
 
-            $cmd =
-                "tar -czf " . escapeshellarg($tarName) . " --exclude-from=" . escapeshellarg($excludeFile) . " . 2>&1";
+            $cmd = "tar -czf " . escapeshellarg($tarName) . " --exclude-from=" . escapeshellarg($excludeFile) . " . 2>&1";
 
             exec($cmd, $output, $returnCode);
 
@@ -2422,7 +2421,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
 
             $gitIgnore = ROOT_PATH . ".gitignore";
 
-            $isNodeMode = file_exists($gitIgnore) && strpos(trim(file_get_contents($gitIgnore)), "!node.php");
+            $isNodeMode = file_exists($gitIgnore) && strpos(trim(f($gitIgnore, "read")), "!node.php");
 
             if (!$mode) {
                 return "Git targeting " . ($isNodeMode ? "Node" : "Project") . "\n";
@@ -2431,10 +2430,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $target = ucfirst(strtolower($mode));
             $source = $target === "Node" ? "Project" : "Node";
 
-            if (
-                ($isNodeMode && $target === "Node") ||
-                (!$isNodeMode && $target === "Project" && file_exists($gitIgnore))
-            ) {
+            if (($isNodeMode && $target === "Node") || (!$isNodeMode && $target === "Project" && file_exists($gitIgnore))) {
                 return "Git already targeting {$target}\n";
             }
 
@@ -2456,13 +2452,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 if (!$flagMoveToSource) {
                     if (file_exists($rootFile) && !file_exists($sourceFile)) {
                         $r .= "mv root: {$rootFile} to {$sourceFile}\n";
-                        rename($rootFile, $sourceFile);
+                        f($rootFile, "move", $sourceFile);
                     }
                 }
 
                 if (file_exists($targetFile) && !file_exists($rootFile)) {
                     $r .= "mv source: {$targetFile} to {$rootFile}\n";
-                    rename($targetFile, $rootFile);
+                    f($targetFile, "move", $rootFile);
                 }
             }
 
@@ -2536,22 +2532,26 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $rFunc = "{$rFn}{$rFnC}{$types}\n";
 
             $pFn = !empty($argv[0]) ? "Atomic Phase orchestration function (file & state rollback on throws)\n\t" : "";
-            $pFnC = "p(?str|int phase, ?str|obj fnWoExt/action):bool|arr\n";
+            $pFnC = "p(?str|int phase, ?str|obj fnWoExt/action):bool|arr";
             $phases = !empty($argv[0])
-                ? "\tphases: [0:boot, 1:discover, 2:transpilate, 3:resolve, 4:execute, 5:mutate, 6:persist, 7:finalize]\n"
+                ? "\n\tphases: [0:boot, 1:discover, 2:transpilate, 3:resolve, 4:execute, 5:mutate, 6:persist, 7:finalize]\n"
                 : "";
 
-            $pFunc = "{$pFn}{$pFnC}{$phases}";
+            $pFunc = "{$pFn}{$pFnC}{$phases}\n";
+
+            $hFn = !empty($argv[0]) ? "Hook registration and execution \n\t" : "";
+            $hFnC = "h(?str name, mix arg = null):mix\n";
+
+            $hFunc = "{$hFn}{$hFnC}";
 
             # Help.
-            return "$r{$rFunc}{$fFunc}{$pFunc}";
+            return "$r{$rFunc}{$fFunc}{$pFunc}{$hFunc}";
         }
         # cli_help end
 
         # cli_info begin
         /**
          * @var array $ROOT_PATHS declared in node when including subnodes.
-         *
          */
 
         function _node_cli_info(bool $tooltip = false, array $argv = []): string
@@ -2564,18 +2564,29 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 # All docs area always lowercase
                 $argv[0] = strtolower($argv[0]);
 
+                # Paths to look for docs.
+                $docPaths = ["Docs" . D . "Node" . D, "Docs" . D];
+
                 # Try Node internal documentation
-                if ($doc = f("Docs" . D . "Node" . D . "{$argv[0]}.md", "read", null, false)) {
+                if ($doc = f("{$docPaths[0]}{$argv[0]}.md", "read", null, false)) {
                     return $doc;
                 }
 
                 # Try project documentation.
-                if ($doc = f("Docs" . D . "{$argv[0]}.md", "read", null, false)) {
+                if ($doc = f("{$docPaths[1]}{$argv[0]}.md", "read", null, false)) {
                     return $doc;
                 }
 
+                # Sorted results as array.
+                [$n, $matchedFiles] = _node_search_docs($argv[0]);
+
+                $results = implode("\n", array_map(fn($x) => "{$x}:{$matchedFiles[$x]}", array_keys($matchedFiles)));
+
+                # Prepare results header.
+                $searchResults = "Searching for files containing the phrase, found ({$n}):\n\n{$results}";
+
                 # Nothing found.
-                return "No documentation found for {$argv[0]}.md\n";
+                return "No documentation file {$argv[0]}.md found.\n{$searchResults}\n";
             }
 
             $info = [];
@@ -2591,6 +2602,36 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $info[] = "Logs: " . count($logFiles) . " files";
 
             return implode("\n", $info) . "\n";
+        }
+
+        function _node_search_docs(string $keyword): array
+        {
+            # Paths to look for docs.
+            $docPaths = ["Docs" . D . "Node" . D, "Docs" . D];
+
+            # Prepare keyword.
+            $keyword = strtolower($keyword);
+
+            $matchedFiles = [];
+            $n = 0;
+
+            foreach ($docPaths as $docPath) {
+                $docs = glob("{$docPath}*.md");
+                foreach ($docs as $doc) {
+                    if ($fc = f($doc, "read")) {
+                        if ($matches = substr_count(strtolower($fc), $keyword)) {
+                            $matchedFiles[$doc] = $matches;
+                            $n += $matches;
+                        }
+                    }
+                }
+            }
+
+            # Sort $matchedFiles by values desc.
+            arsort($matchedFiles);
+
+            # Set for extraction.
+            return [$n, $matchedFiles];
         }
         # cli_info end
 
@@ -2690,7 +2731,17 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     }
                 }
 
-                /* sort($matches); */
+                # Search documentations
+                $results = _node_search_docs($search);
+                if ($results[0]) {
+                    foreach ($results[1] as $path => $match) {
+                        $key = "documentation:{$path}";
+                        if (!isset($seen[$key])) {
+                            $matches[] = "[documentation:{$path}] {$match} mention" . ($match > 1 ? "s" : "");
+                            $seen[$key] = true;
+                        }
+                    }
+                }
 
                 if (!empty($matches) && ($c = count($matches))) {
                     $ml = implode("\n", $matches);
@@ -3197,12 +3248,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # migrate_up end
 
         # migrate_down begin
-        function _node_migrate_down(
-            array $tracking,
-            string $trackingFile,
-            string $migrationPath,
-            string $target,
-        ): string {
+        function _node_migrate_down(array $tracking, string $trackingFile, string $migrationPath, string $target): string
+        {
             $output = "Rolling back migrations...\n";
             $rolledBack = [];
 
@@ -3502,7 +3549,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $files = glob($oldPath . D . "*.php");
 
             foreach ($files as $file) {
-                $content = file_get_contents($file);
+                $content = f($file, "read");
                 $filename = basename($file, ".php");
 
                 // Check for function file (global function at top level)
@@ -3520,10 +3567,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                             } elseif ($token[0] === T_FUNCTION && !$inClass) {
                                 // Check if this is our target function
                                 $nextToken = $tokens[$tokenNumber + 2];
-                                while (
-                                    is_array($nextToken) &&
-                                    ($nextToken[0] === T_WHITESPACE || $nextToken[0] === T_STRING)
-                                ) {
+                                while (is_array($nextToken) && ($nextToken[0] === T_WHITESPACE || $nextToken[0] === T_STRING)) {
                                     if ($nextToken[0] === T_STRING && str_starts_with($nextToken[1], $name)) {
                                         $foundFile = $file;
                                         $currentFilename = $filename;
@@ -3570,7 +3614,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             // Read and update content
-            $content = file_get_contents($foundFile);
+            $content = f($foundFile, "read");
 
             // Get old namespace (if any)
             $oldNamespace = null;
@@ -3584,10 +3628,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             if (!$isFunctionFile) {
                 // For classes/enums/interfaces/traits, update the name
                 $oldNamePattern =
-                    "/\b(class|enum|interface|trait)\s+" .
-                    preg_quote($name, "/") .
-                    preg_quote($oldLeaf, "/") .
-                    "(\s|\{|:)/i";
+                    "/\b(class|enum|interface|trait)\s+" . preg_quote($name, "/") . preg_quote($oldLeaf, "/") . "(\s|\{|:)/i";
                 if (preg_match($oldNamePattern, $content)) {
                     // Replace old name with new name
                     $newName = $name . $newLeaf;
@@ -3619,12 +3660,12 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             // Move the file
-            if (!rename($foundFile, $newFilepath)) {
+            if (!f($foundFile, "move", $newFilepath)) {
                 return "E: Failed to move file from '{$foundFile}' to '{$newFilepath}'.\n";
             }
 
             // Write updated content
-            file_put_contents($newFilepath, $content);
+            f($newFilepath, "write", $content);
 
             // Update all use statements in the project (skip for functions)
             $useStatementsUpdated = 0;
@@ -3683,7 +3724,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     continue;
                 }
 
-                $content = file_get_contents($file->getPathname());
+                $content = f($file->getPathname(), "read");
 
                 // Pattern to match use statements (handles multiple on one line)
                 $pattern = "/(^|\s)use\s+" . preg_quote($oldUse, "/") . "\s*(?:as\s+[^;]+)?\s*;/m";
@@ -3692,7 +3733,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                     $newContent = preg_replace($pattern, '${1}use ' . $newUse . ";", $content);
 
                     if ($newContent !== $content) {
-                        file_put_contents($file->getPathname(), $newContent);
+                        f($file->getPathname(), "write", $newContent);
                         $updatedCount++;
                     }
                 }
@@ -3702,7 +3743,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $newContent = preg_replace($fqcnPattern, "\\" . $newUse, $content);
 
                 if ($newContent !== $content) {
-                    file_put_contents($file->getPathname(), $newContent);
+                    f($file->getPathname(), "write", $newContent);
                     $updatedCount++;
                 }
             }
@@ -3752,14 +3793,13 @@ if ($LOCAL_PATH === ROOT_PATH) {
             PHP;
 
             $sourceFile = $sourcePath . D . "TestMoveState.php";
-            file_put_contents($sourceFile, $testFileContent);
+            f($sourceFile, "write", $testFileContent);
 
             // Test the move function
             $result = _node_cli_move(false, [$sourceResource, $name, $targetResource]);
 
             if (str_starts_with($result, "E:")) {
-                unlink($sourceFile);
-                var_dump($result);
+                f($sourceFile, "delete");
                 return 2;
             }
 
@@ -3770,52 +3810,52 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             // Check namespace was updated
-            $movedContent = file_get_contents($expectedTargetFile);
+            $movedContent = f($expectedTargetFile, "read");
             if (strpos($movedContent, "namespace Primitive\\Enum\\Type") === false) {
-                unlink($expectedTargetFile);
+                f($expectedTargetFile, "delete");
                 return 4;
             }
 
             // Check enum name was updated
             if (strpos($movedContent, "enum TestMoveType:") === false) {
-                unlink($expectedTargetFile);
+                f($expectedTargetFile, "delete");
                 return 5;
             }
 
             // Test error cases
             $missingArgs = _node_cli_move(false, []);
             if (!str_starts_with($missingArgs, "E: Missing arguments")) {
-                unlink($expectedTargetFile);
+                f($expectedTargetFile, "delete");
                 return 6;
             }
 
             $invalidSource = _node_cli_move(false, ["Invalid", $name, $targetResource]);
             if (!str_starts_with($invalidSource, "E: Source resource")) {
-                unlink($expectedTargetFile);
+                f($expectedTargetFile, "delete");
                 return 7;
             }
 
             $invalidTarget = _node_cli_move(false, [$sourceResource, $name, "Invalid"]);
             if (!str_starts_with($invalidTarget, "E: Target resource")) {
-                unlink($expectedTargetFile);
+                f($expectedTargetFile, "delete");
                 return 8;
             }
 
             $notFound = _node_cli_move(false, [$sourceResource, "NonExistentName", $targetResource]);
             if (!str_starts_with($notFound, "E: Could not find")) {
-                unlink($expectedTargetFile);
+                f($expectedTargetFile, "delete");
                 return 9;
             }
 
             // Test tooltip
             $tooltip = _node_cli_move(true, []);
             if (strpos($tooltip, "<resource> <name> <new_resource>") === false) {
-                unlink($expectedTargetFile);
+                f($expectedTargetFile, "delete");
                 return 10;
             }
 
             // Cleanup
-            unlink($expectedTargetFile);
+            f($expectedTargetFile, "delete");
 
             return 0;
         }
@@ -3887,7 +3927,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 // Check if it was successful
                 if (str_starts_with($result, "✓")) {
                     $movedCount++;
-                    $output .= $result . "\n";
+                    $output .= "{$result}\n";
                 } else {
                     $errors[] = "Failed to move '{$name}': " . trim($result);
                 }
@@ -3901,7 +3941,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             }
 
             if ($movedCount > 0) {
-                $summary .= "\n" . $output;
+                $summary .= "\n{$output}";
             }
 
             return $summary;
