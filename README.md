@@ -1,12 +1,9 @@
 # NodePHP Framework
 
-**Version:** 0.1 pre-Alpha
-
-**Author:** Joonas Kolostov
-
-**BCN Address for donations:** 21TEDpBhfRBigtt2XJ7yBRLrA9CrjMFcAZVEfHcesfK2PuDLE7ZBpU5fNCezqRpKfLJf5dmANoy6uA2bGtZ3uT5fJN67BBd
-
-**PHP:** 8.5+
+- **Version:** 0.1 pre-Alpha
+- **Author:** Joonas Kolostov
+- **BCN Address for donations:** 21TEDpBhfRBigtt2XJ7yBRLrA9CrjMFcAZVEfHcesfK2PuDLE7ZBpU5fNCezqRpKfLJf5dmANoy6uA2bGtZ3uT5fJN67BBd
+- **PHP:** 8.5+
 
 ---
 
