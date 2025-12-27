@@ -592,34 +592,6 @@ if (ROOT_PATH !== $LOCAL_PATH) {
 
 # Safeguard redeclaration of these functions from PHP compiler.
 if (!function_exists("f")) {
-    # f begin
-    /*
-     * @param string $fn Complete path to file.
-     * @param string $critical Die if file does not exist.
-     *
-     * @return string Real path.
-     */
-    function f(string $fn, bool $critical = true): string|null
-    {
-        if (file_exists($fn)) {
-            return $fn;
-        }
-
-        global $ROOT_PATHS;
-
-        $fn = ltrim(str_replace(ROOT_PATH, "", $fn), D);
-
-        foreach ($ROOT_PATHS as $path) {
-            $sfn = "{$path}{$fn}";
-            if (file_exists($sfn)) {
-                return $sfn;
-            }
-        }
-
-        return $critical ? die("Error: function f() cannot find file: {$fn}") : null;
-    }
-    # f end
-
     # r begin
     function r(string $logMessage, string $type = "Internal", mixed $return = null, null|array|object $data = null): mixed
     {
@@ -674,6 +646,287 @@ if (!function_exists("f")) {
         return $return;
     }
     # r end
+
+    # f begin
+    /*
+     * @param string $fn Complete path to file.
+     * @param string $action Which file action to preform, find by default.
+     * @param string $arg An argument for action, null by default.
+     * @param string $critical Die if file does not exist.
+     *
+     * @return string Real path.
+     */
+
+    function f(string $fn, string $action = "find", ?string $arg = null, bool $critical = true): mixed
+    {
+        static $ops = [];
+
+        if ($fn === "dump") {
+            return implode("\n", array_column($ops, "path"));
+        }
+
+        # Rollback the entire stack of file operations.
+        if ($fn === "rollback") {
+            foreach (array_reverse($ops) as $op) {
+                try {
+                    match ($op["action"]) {
+                        "write" => file_put_contents($op["path"], $op["old_content"] ?? ""),
+                        "delete" => !file_exists($op["path"]) && file_put_contents($op["path"], $op["content"]),
+                        "copy" => file_exists($op["new_path"]) && unlink($op["new_path"]),
+                        "move" => rename($op["new_path"], $op["old_path"]),
+                    };
+                } catch (Exception $e) {
+                    return r("Rollback action: " . $e->getMessage(), "Exception", false, $op);
+                }
+            }
+            # On success do reset internal stack.
+            $ops = [];
+
+            # Success.
+            return true;
+        }
+
+        # Try to set real path.
+        if (!($real_path = file_exists($fn) ? $fn : null)) {
+            global $ROOT_PATHS;
+
+            $fn = ltrim(str_replace(ROOT_PATH, "", $fn), D);
+            foreach ($ROOT_PATHS as $path) {
+                $sfn = "{$path}{$fn}";
+                if (file_exists($sfn)) {
+                    $real_path = $sfn;
+                    break;
+                }
+            }
+        }
+
+        # Die early if critical file cannot be targeted.
+        if ($real_path === null && $critical) {
+            die("Error: function f() cannot find file: {$fn}");
+        }
+
+        # If we're just finding targeted file or the targeted file cannot
+        # proceed with any operation (it being null) return real_path as value.
+        if ($action === "find" || $real_path === null) {
+            return $real_path;
+        }
+
+        $old_content = file_exists($real_path) ? file_get_contents($real_path) : null;
+
+        # Base parameters of this file action.
+        # this is to be added to depending on given action for future possible rollback.
+        $op_record = ["action" => $action, "path" => $real_path, "old_content" => $old_content];
+
+        switch ($action) {
+            case "write":
+                try {
+                    $r = file_put_contents($real_path, $arg);
+                } catch (Exception $e) {
+                    return r("Write action: " . $e->getMessage(), "Exception", false, $op_record);
+                }
+                $ops[] = $op_record;
+
+                # Action completed.
+                return $r;
+            case "delete":
+                if (file_exists($real_path)) {
+                    try {
+                        $r = unlink($real_path);
+                    } catch (Exception $e) {
+                        return r("Delete action: " . $e->getMessage(), "Exception", false, $op_record);
+                    }
+                    $op_record["content"] = $old_content;
+                    $ops[] = $op_record;
+
+                    # Action completed.
+                    return $r;
+                }
+                # Nothing could be deleted.
+                return null;
+            case "copy":
+                if (file_exists($real_path) && $arg !== null) {
+                    $new_path = $arg;
+                    $op_record["new_path"] = $new_path;
+
+                    try {
+                        $r = copy($real_path, $new_path);
+                    } catch (Exception $e) {
+                        return r("Copy action: " . $e->getMessage(), "Exception", false, $op_record);
+                    }
+                    $ops[] = $op_record;
+                    return $r;
+                }
+                return null;
+            case "move":
+                if (file_exists($real_path) && $arg !== null) {
+                    $new_path = $arg;
+                    $op_record["new_path"] = $new_path;
+                    $op_record["old_path"] = $real_path;
+
+                    try {
+                        $r = rename($real_path, $new_path);
+                    } catch (Exception $e) {
+                        return r("Move action: " . $e->getMessage(), "Exception", false, $op_record);
+                    }
+                    $ops[] = $op_record;
+                    $real_path = $new_path;
+
+                    # Action completed.
+                    return $r;
+                }
+                # Nothing could be deleted.
+                return null;
+            default:
+                break;
+        }
+
+        return $real_path;
+    }
+    # f end
+
+    # p begin
+    #[AllowDynamicProperties]
+    class Context {}
+
+    /**
+     * @param int|string|null $phase Phase index or name of the addressed phase.
+     * Leave this param empty if running all phases in sequence.
+     *
+     * @param object|string|null $action Expecting relative path from ROOT_PATH
+     * to file w/o extension or function declaration fn($name, &$state_copy):object {...}
+     *
+     * IMPORTANT! Every $action must return $this; object.
+     *
+     * @return bool|array Operation success status or resulted state array.
+     */
+    function p(int|string|null $phase = null, object|string|null $action = null): bool|array
+    {
+        # Active record Declarations.
+        static $phases = [],
+            $state = [],
+            $backups = [];
+
+        # Order of phases and the list of available phases.
+        static $order = ["boot", "discover", "transpilate", "resolve", "execute", "mutate", "persist", "finalize"];
+
+        if ($phase === null) {
+            foreach ($order as $index => $name) {
+                $copy = $state;
+
+                # New context for each phase context.
+                $context = new Context();
+
+                # Give extract $copy to $handler closure via $this
+                array_map(fn($k) => ($context->{$k} = $copy[$k]), array_keys($copy));
+
+                try {
+                    foreach ($phases[$name] ?? [] as $handler) {
+                        $boundFunc = $handler->bindTo($context, Context::class);
+                        $handlerResult = (array) ($boundFunc($name, $copy) ?? []);
+
+                        if ($handlerResult !== null && !empty($handlerResult)) {
+                            $copy = [...$copy, ...$handlerResult];
+                        }
+                    }
+                    $state = $copy;
+                    $backups[$name] = $state;
+                } catch (Throwable $e) {
+                    f("rollback");
+                    for ($i = $index; $i >= 0; $i--) {
+                        $state = $backups[$order[$i - 1]] ?? [];
+                    }
+                    r("Phase {$name} failed: " . $e->getMessage(), "Exception", false, [
+                        "phase" => $name,
+                        "state" => $state,
+                    ]);
+                    throw new RuntimeException("Phase {$name} failed", 0, $e);
+                }
+            }
+            return $state;
+        }
+
+        # Decide the name from given index or given name.
+        $name = is_int($phase) ? $order[$phase] ?? null : $phase;
+
+        # Invalid phase?
+        if ($name === null || !in_array($name, $order)) {
+            throw new InvalidArgumentException("Unknown phase: {$phase}");
+        }
+
+        # Run given phase if no action given.
+        if ($action === null) {
+            if (!isset($phases[$name])) {
+                throw new InvalidArgumentException("Unknown phase: $name");
+            }
+            $copy = $state;
+            $phaseIndex = array_search($name, $order);
+
+            try {
+                # New context for this phase called.
+                $context = new Context();
+
+                # Give extract $copy to $handler closure via $this
+                array_map(fn($k) => ($context->{$k} = $copy[$k]), array_keys($copy));
+
+                # Run all handlers in this phase.
+                foreach ($phases[$name] as $handler) {
+                    $boundFunc = $handler->bindTo($context, Context::class);
+                    $handlerResult = (array) ($boundFunc($name, $copy) ?? []);
+
+                    if ($handlerResult !== null && !empty($handlerResult)) {
+                        $copy = [...$copy, ...$handlerResult];
+                    }
+                }
+                $state = $copy;
+                $backups[$name] = $state;
+            } catch (Throwable $e) {
+                f("rollback");
+                for ($i = $phaseIndex; $i >= 0; $i--) {
+                    $state = $backups[$order[$i - 1]] ?? [];
+                }
+                r("Phase '$name' failed: " . $e->getMessage(), "Exception", false, [
+                    "phase" => $name,
+                    "state" => $state,
+                ]);
+                throw $e;
+            }
+            return $copy;
+        }
+
+        # Set action inside phase if it is a string or callable.
+        if ($action instanceof Closure || is_callable($action)) {
+            $phases[$name][] = $action;
+
+            # Closure set.
+            return true;
+        } elseif (is_string($action)) {
+            $file = f("{$action}.php", "find", null, false);
+
+            # If requested file was not found, throw softly without immediate die.
+            if ($file === null) {
+                # Log.
+                r("Phase file not found: $action.php", "Exception", false, ["phase" => $name, "file" => $action]);
+
+                # Throw.
+                throw new RuntimeException("Phase file not found: $action.php");
+            }
+
+            # File inclusion given.
+            $phases[$name][] = function ($name, &$copy) use ($file) {
+                # Actual file to run.
+                include_once $file;
+
+                /**
+                 * @var object $this given by bindTo from p() phase runner.
+                 */
+                return $this;
+            };
+        }
+
+        # Nothing got set in phase.
+        return false;
+    }
+    # p end
 
     # h begin
     /**
@@ -2268,16 +2521,30 @@ if ($LOCAL_PATH === ROOT_PATH) {
                 $lines[] = $line;
             }
 
-            $r = implode("\n", $lines);
+            $r = implode("\n", $lines) . "\n\n";
 
-            $fFnC = "f(string path, bool critical) : string";
-            $fFn = "Static file path resolution function\n\t{$fFnC}\n";
+            $fFn = !empty($argv[0]) ? "File path resolution & mutation tracker function\n\t" : "";
+            $fFnC = "f(str path, ?str action = find, ?str arg, ?bool critical = true):mix";
+            $actions = !empty($argv[0]) ? "\n\tactions: [find, write, delete, copy, move]\n" : "";
 
-            $rFnC = "r(str logMsg, ?str logType, ?mix return, ?arr|obj ctxData = [])";
-            $rFn = "Result logging function\n\t{$rFnC}\n";
-            $logTypes = "LogTypes: [Internal, Access, Audit, Error, Exception]\n";
+            $fFunc = "{$fFn}{$fFnC}{$actions}\n";
 
-            return "$r\n\n{$fFn}{$rFn}{$logTypes}";
+            $rFn = !empty($argv[0]) ? "Result logging function\n\t" : "";
+            $rFnC = "r(str msg, ?str type, ?mix return, ?arr|obj ctxData = []):mix";
+            $types = !empty($argv[0]) ? "\n\ttypes: [Internal, Access, Audit, Error, Exception]\n" : "";
+
+            $rFunc = "{$rFn}{$rFnC}{$types}\n";
+
+            $pFn = !empty($argv[0]) ? "Atomic Phase orchestration function (file & state rollback on throws)\n\t" : "";
+            $pFnC = "p(?str|int phase, ?str|obj fnWoExt/action):bool|arr\n";
+            $phases = !empty($argv[0])
+                ? "\tphases: [0:boot, 1:discover, 2:transpilate, 3:resolve, 4:execute, 5:mutate, 6:persist, 7:finalize]\n"
+                : "";
+
+            $pFunc = "{$pFn}{$pFnC}{$phases}";
+
+            # Help.
+            return "$r{$rFunc}{$fFunc}{$pFunc}";
         }
         # cli_help end
 
