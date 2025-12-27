@@ -597,12 +597,8 @@ if (ROOT_PATH !== $LOCAL_PATH) {
 # Safeguard redeclaration of these functions from PHP compiler.
 if (!function_exists("f")) {
     # r begin
-    function r(
-        string $logMessage,
-        string $type = "Internal",
-        mixed $return = null,
-        null|array|object $data = null,
-    ): mixed {
+    function r(string $msg, string $type = "Internal", mixed $return = null, null|array|object $data = null): mixed
+    {
         static $logDirs = [
             "Internal" => LOG_PATH . "Internal" . D,
             "Access" => LOG_PATH . "Access" . D,
@@ -627,7 +623,7 @@ if (!function_exists("f")) {
             "file" => str_replace(ROOT_PATH, "", $file),
             "line" => $line,
             "function" => $caller,
-            "message" => $logMessage,
+            "message" => $msg,
             "data" => $data ? (array) $data : null,
             "result" => $return,
         ];
@@ -1015,7 +1011,7 @@ if (!function_exists("f")) {
                     $logs[] = $logEntry;
                 }
             } catch (Exception $e) {
-                // Skip invalid JSON lines
+                r("Reading log file:" . $e->getMessage(), "Exception", null, [$logEntry, json_last_error()]);
             }
         }
 
@@ -1098,12 +1094,8 @@ if (!function_exists("f")) {
     # get_all_log_files end
 
     # structure_walk begin
-    function _node_structure_walk(
-        array $array,
-        callable $callback,
-        string $location = "",
-        string $LOCAL_PATH = "",
-    ): array {
+    function _node_structure_walk(array $array, callable $callback, string $location = "", string $PATH = ""): array
+    {
         $r = [];
 
         if (!empty($array)) {
@@ -1111,7 +1103,7 @@ if (!function_exists("f")) {
                 if (is_numeric($name)) {
                     continue;
                 }
-                $path = "{$LOCAL_PATH}{$location}{$name}";
+                $path = "{$PATH}{$location}{$name}";
 
                 $r[] = $callback($path, $val);
 
@@ -1119,7 +1111,7 @@ if (!function_exists("f")) {
                     $sub = array_is_list($val) ? array_flip($val) : $val;
                     $srl = "{$location}{$name}" . D;
 
-                    $r = [...$r, ..._node_structure_walk($sub, $callback, $srl, $LOCAL_PATH)];
+                    $r = [...$r, ..._node_structure_walk($sub, $callback, $srl, $PATH)];
                 }
             }
         }
@@ -1191,6 +1183,15 @@ if (!function_exists("f")) {
                 $path = $PATH . ".." . D . $node;
 
                 if ($check = realpath($path)) {
+                    # If no include header file present.
+                    if (!file_exists($check . D . "node.include.php")) {
+                        # Try to run subnode without any args to invoke
+                        # its creation.
+                        chdir($check) && exec("php node.php");
+                        chdir(ROOT_PATH);
+                    }
+
+                    # Try to set include file as entry point.
                     $file = file_exists($check . D . "node.include.php")
                         ? $check . D . "node.include.php"
                         : $check . D . "node.php";
@@ -1200,9 +1201,9 @@ if (!function_exists("f")) {
                     } else {
                         # Impossible optimization:
                         # 1. set new node location,
-                        # 2. goto to beginnong of current node.php,
+                        # 2. goto to beginning of current node.php,
                         # 3. process as if in included node
-                        # 4. continue within this oop
+                        # 4. continue within this operation.
                         # instead we throw
                         throw new Exception("Node {$PATH} requires node that does not exist at: {$path}.", 0);
                     }
@@ -1219,7 +1220,7 @@ if (!function_exists("f")) {
             }
 
             # Exclude from runtimes
-            $e = ["Git", "Test", "Public", "Log", "Deprecated", "Backup"];
+            $e = ["Git", "Test", "Public", "Log", "Deprecated", "Backup", "Docs"];
             if (PHP_SAPI !== "cli") {
                 $e = [...$e, ...["Migration"]];
             }
@@ -1553,7 +1554,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
             r("Invalid entry point: {$entry}", "Error");
             http_response_code(500);
 
-            die("Application entry point configuration error [node.json -> run].");
+            die("Node entry point configuration error [node.json -> run].");
         }
         # execute_run end
 
