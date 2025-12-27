@@ -6,5 +6,9 @@
 !README.md
 !.gitignore
 
-# Keep documentations for node internals
-!Docs/Node/*
+# Un-ignore the directory structure
+!Docs/
+!Docs/Node/
+
+# Now un-ignore the files inside
+!Docs/Node/*.md
