@@ -1116,117 +1116,51 @@ if (!function_exists("f")) {
             # Interfaces
             $type === "Interface" && $subtype === "Behavioral" => match ($leaf) {
                 "Command" => "\n{\n\tpublic function execute(): void;\n}\n",
-                "Listener" => "\n{\n\tpublic function handle(object \$event): void;\n}\n",
-                "Observer" => "\n{\n\tpublic function update(object \$subject): void;\n}\n",
-                "Policy" => "\n{\n\tpublic function allows(\$user, \$resource): bool;\n}\n",
-                "Specification" => "\n{\n\tpublic function isSatisfiedBy(\$candidate): bool;\n}\n",
+                "Listener" => "\n{\n\tpublic function handle(): void;\n}\n",
+                "Observer" => "\n{\n\tpublic function update(): void;\n}\n",
+                "Policy" => "\n{\n\tpublic function allows(): bool;\n}\n",
+                "Specification" => "\n{\n\tpublic function isSatisfiedBy(): bool;\n}\n",
                 "State" => "\n{\n\tpublic function handle(): void;\n}\n",
-                "Strategy" => "\n{\n\tpublic function execute(array \$data): mixed;\n}\n",
+                "Strategy" => "\n{\n\tpublic function execute(): mixed;\n}\n",
                 default => "\n{\n\t# TODO: Define interface methods\n}\n",
             },
 
             $type === "Interface" && $subtype === "Creational" => match ($leaf) {
-                "Builder" => "\n{\n\tpublic function build(): object;\n}\n",
-                "Factory" => "\n{\n\tpublic function create(array \$data): object;\n}\n",
+                "Builder" => "\n{\n\tpublic function build(): mixed;\n}\n",
+                "Factory" => "\n{\n\tpublic function create(): mixed;\n}\n",
                 default => "\n{\n\t# TODO: Define creational interface methods\n}\n",
             },
 
             $type === "Interface" && $subtype === "Infrastructure" => match ($leaf) {
-                "Authenticator" => "\n{\n\tpublic function authenticate(array \$credentials): bool;\n}\n",
-                "Authorizer" => "\n{\n\tpublic function authorize(\$user, string \$permission): bool;\n}\n",
-                "Cache"
-                    => "\n{\n\tpublic function get(string \$key): mixed;\n\tpublic function set(string \$key, mixed \$value, int \$ttl = 3600): void;\n}\n",
-                "Logger"
-                    => "\n{\n\tpublic function log(string \$level, string \$message, array \$context = []): void;\n}\n",
-                "Repository"
-                    => "\n{\n\tpublic function find(\$id): ?object;\n\tpublic function save(object \$entity): void;\n}\n",
+                "Authenticator" => "\n{\n\tpublic function authenticate(): bool;\n}\n",
+                "Authorizer" => "\n{\n\tpublic function authorize(): bool;\n}\n",
+                "Cache" => "\n{\n\tpublic function get(): mixed;\n\tpublic function set(): void;\n}\n",
+                "Logger" => "\n{\n\tpublic function log(): void;\n}\n",
+                "Repository" => "\n{\n\tpublic function find(): mixed;\n\tpublic function save(): void;\n}\n",
                 default => "\n{\n\t# TODO: Define infrastructure interface methods\n}\n",
             },
 
             $type === "Interface" && $subtype === "Presentation" => match ($leaf) {
                 "Controller" => "\n{\n\tpublic function handle(): mixed;\n}\n",
-                "Middleware" => "\n{\n\tpublic function process(\$request, \$handler): mixed;\n}\n",
-                "Responder" => "\n{\n\tpublic function respond(\$data): mixed;\n}\n",
+                "Middleware" => "\n{\n\tpublic function process(): mixed;\n}\n",
+                "Responder" => "\n{\n\tpublic function respond(): mixed;\n}\n",
                 default => "\n{\n\t# TODO: Define presentation interface methods\n}\n",
             },
             # Enums
             $type === "Enum" => match ($subtype) {
-                "Http"
-                    => "\n{\n\tcase GET = 'GET';\n\tcase POST = 'POST';\n\tcase PUT = 'PUT';\n\tcase DELETE = 'DELETE';\n}\n",
-                "Status"
-                    => "\n{\n\tcase PENDING = 'pending';\n\tcase PROCESSING = 'processing';\n\tcase COMPLETED = 'completed';\n\tcase FAILED = 'failed';\n}\n",
-                "State"
-                    => "\n{\n\tcase DRAFT = 'draft';\n\tcase ACTIVE = 'active';\n\tcase ARCHIVED = 'archived';\n\tcase DELETED = 'deleted';\n}\n",
-                "Role"
-                    => "\n{\n\tcase GUEST = 'guest';\n\tcase USER = 'user';\n\tcase ADMIN = 'admin';\n\tcase SUPER_ADMIN = 'super_admin';\n}\n",
+                "Http" => "\n{\n\tcase GET;\n\tcase POST;\n\tcase PUT;\n\tcase DELETE;\n}\n",
+                "Status" => "\n{\n\tcase PENDING;\n\tcase PROCESSING;\n\tcase COMPLETED;\n\tcase FAILED;\n}\n",
+                "State" => "\n{\n\tcase DRAFT;\n\tcase ACTIVE;\n\tcase ARCHIVED;\n\tcase DELETED;\n}\n",
+                "Role" => "\n{\n\tcase GUEST;\n\tcase USER;\n\tcase ADMIN;\n}\n",
                 default => "\n{\n\t# TODO: Define enum cases\n}\n",
             },
             # Traits
             $type === "Trait" => match ($leaf) {
-                "Singleton"
-                    => "\n{\n\tprivate static ?self \$instance = null;\n\n\tprivate function __construct() {}\n\tprivate function __clone() {}\n\tpublic function __wakeup() {}\n\n\tpublic static function getInstance(): self\n\t{\n\t\tif (self::\$instance === null) {\n\t\t\tself::\$instance = new self();\n\t\t}\n\t\treturn self::\$instance;\n\t}\n}\n",
-                "Timestampable"
-                    => "\n{\n\tprivate ?\DateTimeInterface \$createdAt = null;\n\tprivate ?\DateTimeInterface \$updatedAt = null;\n\n\tpublic function getCreatedAt(): ?\DateTimeInterface\n\t{\n\t\treturn \$this->createdAt;\n\t}\n\n\tpublic function getUpdatedAt(): ?\DateTimeInterface\n\t{\n\t\treturn \$this->updatedAt;\n\t}\n\n\tpublic function setCreatedAt(\DateTimeInterface \$date): void\n\t{\n\t\t\$this->createdAt = \$date;\n\t}\n\n\tpublic function setUpdatedAt(\DateTimeInterface \$date): void\n\t{\n\t\t\$this->updatedAt = \$date;\n\t}\n}\n",
-                "SoftDeletes" => "\n{\n\tpublic function delete(int \$id): int\n\t{\n\t\treturn 0;\n\t}\n}\n",
+                "Singleton" => "\n{\n\tpublic static function getInstance(): self\n\t{\n\t\treturn new self();\n\t}\n}\n",
+                "Timestampable" => "\n{\n\tpublic function getCreatedAt(): mixed\n\t{\n\t\treturn null;\n\t}\n}\n",
+                "SoftDeletes" => "\n{\n\tpublic function delete(): int\n\t{\n\t\treturn 0;\n\t}\n}\n",
                 default => "\n{\n\t# TODO: Implement trait methods\n}\n",
             },
-            # Functions
-            $type === "Function" => match ($leaf) {
-                "Helper" => "(): mixed\n{\n\t# TODO: Implement helper function\n\treturn null;\n}\n",
-                "Validator" => "(mixed \$value): bool\n{\n\t# TODO: Implement validation logic\n\treturn false;\n}\n",
-                "Transformer" => "(mixed \$input): mixed\n{\n\t# TODO: Transform input data\n\treturn \$input;\n}\n",
-                "Presenter" => "(mixed \$data): string\n{\n\t# TODO: Format data for presentation\n\treturn '';\n}\n",
-                "Predicate" => "(mixed \$value): bool\n{\n\t# TODO: Evaluate predicate\n\treturn false;\n}\n",
-                default => "(): void\n{\n\t# TODO: Implement function\n}\n",
-            },
-            # Abstract Classes
-            $keyword === "abstract class" => match ($category) {
-                "Command"
-                    => "\n{\n\tabstract public function execute(): void;\n\n\tpublic function getName(): string\n\t{\n\t\treturn static::class;\n\t}\n}\n",
-                "Controller"
-                    => "\n{\n\tabstract public function handle(): mixed;\n\n\tprotected function respond(\$data, int \$status = 200): mixed\n\t{\n\t\t# TODO: Implement response formatting\n\t\treturn \$data;\n\t}\n}\n",
-                "Repository"
-                    => "\n{\n\tabstract public function find(\$id): ?object;\n\tabstract public function save(object \$entity): void;\n\n\tprotected function getConnection()\n\t{\n\t\t# TODO: Return database connection\n\t\treturn null;\n\t}\n}\n",
-                "Service"
-                    => "\n{\n\tabstract public function process(\$data): mixed;\n\n\tprotected function validate(\$data): bool\n\t{\n\t\t# TODO: Implement validation\n\t\treturn true;\n\t}\n}\n",
-                default => "\n{\n\t# TODO: Implement abstract methods\n}\n",
-            },
-            # Final Classes
-            $keyword === "final class" => match ($category) {
-                "Command"
-                    => "\n{\n\tpublic function __construct(private array \$payload = []) {}\n\n\tpublic function execute(): void\n\t{\n\t\t# TODO: Implement command execution\n\t}\n}\n",
-                "Controller" => match ($leaf) {
-                    "Api"
-                        => "\n{\n\tpublic function index(): array\n\t{\n\t\t# TODO: Return collection\n\t\treturn [];\n\t}\n\n\tpublic function show(\$id): array\n\t{\n\t\t# TODO: Return single item\n\t\treturn [];\n\t}\n\n\tpublic function store(array \$data): array\n\t{\n\t\t# TODO: Create new item\n\t\treturn [];\n\t}\n\n\tpublic function update(\$id, array \$data): array\n\t{\n\t\t# TODO: Update existing item\n\t\treturn [];\n\t}\n\n\tpublic function destroy(\$id): array\n\t{\n\t\t# TODO: Delete item\n\t\treturn [];\n\t}\n}\n",
-                    "Action"
-                        => "\n{\n\tpublic function __invoke(): mixed\n\t{\n\t\t# TODO: Implement single action\n\t\treturn null;\n\t}\n}\n",
-                    default
-                        => "\n{\n\tpublic function handle(): mixed\n\t{\n\t\t# TODO: Implement controller logic\n\t\treturn null;\n\t}\n}\n",
-                },
-                "Event"
-                    => "\n{\n\tpublic function __construct(\n\t\tpublic readonly string \$name,\n\t\tpublic readonly array \$payload = [],\n\t\tpublic readonly \DateTimeInterface \$occurredAt = new \DateTime()\n\t) {}\n}\n",
-                "DTO"
-                    => "\n{\n\tpublic function __construct(\n\t\t# TODO: Define properties\n\t) {}\n\n\tpublic function toArray(): array\n\t{\n\t\t# TODO: Convert to array\n\t\treturn [];\n\t}\n\n\tpublic static function fromArray(array \$data): self\n\t{\n\t\t# TODO: Create from array\n\t\treturn new self();\n\t}\n}\n",
-                "Middleware"
-                    => "\n{\n\tpublic function process(\$request, \$handler): mixed\n\t{\n\t\t# TODO: Process request before handler\n\t\t\$response = \$handler->handle(\$request);\n\t\t# TODO: Process response after handler\n\t\treturn \$response;\n\t}\n}\n",
-                "Validator"
-                    => "\n{\n\tpublic function validate(\$value): bool\n\t{\n\t\t# TODO: Implement validation rules\n\t\treturn true;\n\t}\n\n\tpublic function getErrors(): array\n\t{\n\t\t# TODO: Return validation errors\n\t\treturn [];\n\t}\n}\n",
-                "Repository"
-                    => "\n{\n\tpublic function find(\$id): ?object\n\t{\n\t\t# TODO: Find by ID\n\t\treturn null;\n\t}\n\n\tpublic function save(object \$entity): void\n\t{\n\t\t# TODO: Save entity\n\t}\n\n\tpublic function delete(\$id): void\n\t{\n\t\t# TODO: Delete by ID\n\t}\n}\n",
-                "Service"
-                    => "\n{\n\tpublic function execute(\$data): mixed\n\t{\n\t\t# TODO: Implement service logic\n\t\treturn null;\n\t}\n\n\tprotected function validateInput(\$data): bool\n\t{\n\t\t# TODO: Validate input data\n\t\treturn true;\n\t}\n}\n",
-                default => "\n{\n\tpublic function __construct()\n\t{\n\t\t# TODO: Initialize\n\t}\n}\n",
-            },
-            # Regular Classes
-            $type === "Class" => match (true) {
-                in_array($leaf, ["Migration", "Seed"])
-                    => "\n{\n\tpublic function up(): void\n\t{\n\t\t# TODO: Implement migration up\n\t}\n\n\tpublic function down(): void\n\t{\n\t\t# TODO: Implement migration down\n\t}\n}\n",
-                in_array($leaf, ["Model", "Entity"])
-                    => "\n{\n\tprivate ?int \$id = null;\n\tprivate \DateTimeInterface \$createdAt;\n\tprivate \DateTimeInterface \$updatedAt;\n\n\tpublic function __construct()\n\t{\n\t\t\$this->createdAt = new \DateTime();\n\t\t\$this->updatedAt = new \DateTime();\n\t}\n\n\tpublic function getId(): ?int\n\t{\n\t\treturn \$this->id;\n\t}\n\n\tpublic function getCreatedAt(): \DateTimeInterface\n\t{\n\t\treturn \$this->createdAt;\n\t}\n\n\tpublic function getUpdatedAt(): \DateTimeInterface\n\t{\n\t\treturn \$this->updatedAt;\n\t}\n}\n",
-                default => "\n{\n\tpublic function __construct()\n\t{\n\t\t# TODO: Initialize\n\t}\n}\n",
-            },
-            # Default case
-            default => "\n{\n\t# TODO: Implement\n}\n",
         };
 
         # Add use statements for certain types
