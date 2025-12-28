@@ -665,12 +665,12 @@ if (!function_exists("f")) {
     {
         static $ops = [];
 
-        if ($fn === "dump") {
+        if ($fn === ":dump") {
             return implode("\n", array_column($ops, "path"));
         }
 
         # Rollback the entire stack of file operations.
-        if ($fn === "rollback") {
+        if ($fn === ":rollback") {
             foreach (array_reverse($ops) as $op) {
                 try {
                     match ($op["action"]) {
@@ -690,22 +690,28 @@ if (!function_exists("f")) {
             return true;
         }
 
-        # Try to set real path.
-        if (!($real_path = file_exists($fn) ? $fn : null)) {
-            global $ROOT_PATHS;
+        # We can wite files that are not there.
+        if ($action !== "write") {
+            # Try to set real path.
+            if (!($real_path = file_exists($fn) ? $fn : null)) {
+                global $ROOT_PATHS;
 
-            $fn = ltrim(str_replace(ROOT_PATH, "", $fn), D);
-            foreach ($ROOT_PATHS as $path) {
-                $sfn = "{$path}{$fn}";
-                if (file_exists($sfn)) {
-                    $real_path = $sfn;
-                    break;
+                $fn = ltrim(str_replace(ROOT_PATH, "", $fn), D);
+                foreach ($ROOT_PATHS as $path) {
+                    $sfn = "{$path}{$fn}";
+                    if (file_exists($sfn)) {
+                        $real_path = $sfn;
+                        break;
+                    }
                 }
             }
-        }
 
-        # Throw early if critical file cannot be targeted.
-        $real_path ?? ($critical ? throw new RuntimeException("File not found: {$fn}") : null);
+            # Throw early if critical file cannot be targeted.
+            $real_path ?? ($critical ? throw new RuntimeException("File not found: {$fn}") : null);
+        } else {
+            # Write into given path.
+            $real_path = $fn;
+        }
 
         # If we're just finding targeted file or the targeted file cannot
         # proceed with any operation (it being null) return real_path as value.
@@ -1437,6 +1443,7 @@ if (!function_exists("f")) {
                 "SoftDeletes" => "\n{\n\tpublic function delete(): int\n\t{\n\t\treturn 0;\n\t}\n}\n",
                 default => "\n{\n\t# TODO: Implement trait methods\n}\n",
             },
+            default => "\n{\n\t# TODO: Implementation\n}\n",
         };
 
         # Add use statements for certain types
@@ -1668,7 +1675,8 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $currentDir = getcwd();
             chdir(ROOT_PATH);
 
-            $cmd = "tar -czf " . escapeshellarg($tarName) . " --exclude-from=" . escapeshellarg($excludeFile) . " . 2>&1";
+            $cmd =
+                "tar -czf " . escapeshellarg($tarName) . " --exclude-from=" . escapeshellarg($excludeFile) . " . 2>&1";
 
             exec($cmd, $output, $returnCode);
 
@@ -2444,7 +2452,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
             $target = ucfirst(strtolower($mode));
             $source = $target === "Node" ? "Project" : "Node";
 
-            if (($isNodeMode && $target === "Node") || (!$isNodeMode && $target === "Project" && file_exists($gitIgnore))) {
+            if (
+                ($isNodeMode && $target === "Node") ||
+                (!$isNodeMode && $target === "Project" && file_exists($gitIgnore))
+            ) {
                 return "Git already targeting {$target}\n";
             }
 
@@ -3262,8 +3273,12 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # migrate_up end
 
         # migrate_down begin
-        function _node_migrate_down(array $tracking, string $trackingFile, string $migrationPath, string $target): string
-        {
+        function _node_migrate_down(
+            array $tracking,
+            string $trackingFile,
+            string $migrationPath,
+            string $target,
+        ): string {
             $output = "Rolling back migrations...\n";
             $rolledBack = [];
 
@@ -3581,7 +3596,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                             } elseif ($token[0] === T_FUNCTION && !$inClass) {
                                 // Check if this is our target function
                                 $nextToken = $tokens[$tokenNumber + 2];
-                                while (is_array($nextToken) && ($nextToken[0] === T_WHITESPACE || $nextToken[0] === T_STRING)) {
+                                while (
+                                    is_array($nextToken) &&
+                                    ($nextToken[0] === T_WHITESPACE || $nextToken[0] === T_STRING)
+                                ) {
                                     if ($nextToken[0] === T_STRING && str_starts_with($nextToken[1], $name)) {
                                         $foundFile = $file;
                                         $currentFilename = $filename;
@@ -3642,7 +3660,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
             if (!$isFunctionFile) {
                 // For classes/enums/interfaces/traits, update the name
                 $oldNamePattern =
-                    "/\b(class|enum|interface|trait)\s+" . preg_quote($name, "/") . preg_quote($oldLeaf, "/") . "(\s|\{|:)/i";
+                    "/\b(class|enum|interface|trait)\s+" .
+                    preg_quote($name, "/") .
+                    preg_quote($oldLeaf, "/") .
+                    "(\s|\{|:)/i";
                 if (preg_match($oldNamePattern, $content)) {
                     // Replace old name with new name
                     $newName = $name . $newLeaf;
@@ -3999,10 +4020,10 @@ if ($LOCAL_PATH === ROOT_PATH) {
                                 }
                                 PHP;
 
-                                file_put_contents($fn, $content);
+                                f($fn, "write", $content);
                                 $size = filesize($fn);
                             } else {
-                                $size = file_put_contents($fn, $fc[0]);
+                                $size = f($fn, "write", $fc[0]);
                             }
 
                             return "Migration file created at {$fn} size {$size} bytes.\n";
@@ -4010,7 +4031,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
                             $ext = strpos($name, ".") !== false ? "" : ".php";
                             $fn = $c[1] . D . $name . $ext;
                             if (!file_exists($fn)) {
-                                $size = file_put_contents($fn, "\n");
+                                $size = f($fn, "write", "\n");
                                 return "File created at {$fn} size {$size} bytes.\n";
                             } else {
                                 return "E: File {$fn} already exists.\n";
