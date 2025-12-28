@@ -9,7 +9,7 @@
 
 ## Introduction
 
-**NodePHP** is a lightweight, modular PHP framework designed for maximum stability, flexibility, and maintainability. It provides a structured yet low-level approach to building robust PHP applications, functioning as a monolith for PHP Node-based programming.
+**NodePHP** is a lightweight, modular PHP framework designed for maximum modularity, flexibility, and maintainability. It provides a structured yet low-level approach to building robust PHP applications, functioning as a monolith for PHP Node-based programming.
 
 ### Key Features:
 
@@ -19,7 +19,7 @@
 - Compatibility across multiple PHP versions while maintaining strict typing and modern syntax features
 - Git repository management and project structuring
 
-NodePHP is ideal for developers who value **stability, modularity, and full programmatic control** over their codebase.
+NodePHP is ideal for developers who value **minimalism, modularity, and full programmatic control** over their codebase.
 
 ---
 
@@ -49,29 +49,12 @@ php node serve
 
 ## Core Principles
 
-1. **Modularity and Sectioning**
-    - Code is split into logical sections using `# section_name begin` / `# section_name end` markers
-    - Sections can be automatically wrapped into separate files and included dynamically, keeping `node.php` as a single entry point
-
-2. **CLI-First Tooling**
-    - The framework exposes most operations via CLI commands (`node.php <command> [args]`)
-    - All repetitive tasks should be handled via CLI commands or internal tests
-
-3. **Internal and External Testing**
-    - All test functions start with `test_` and are automatically detected
-    - Supports `internal` test runs (NodePHP core functions) and standard test types
-    - Provides granular feedback, counts passed/failed tests, and sets appropriate exit codes for CI pipelines
-
-4. **Dynamic Project Structure**
-    - Automatically manages project structure through `_node_cli_restructure()`
-    - Supports nested folders, empty-folder cleanup, and modular deployment
-
-5. **Stable, Low-Level Design**
+1. **Stable, Low-Level Design**
     - Minimal reliance on external dependencies
     - Fully typed arguments and return types
     - Emphasis on long-term compatibility with legacy PHP versions while utilizing modern syntax where safe
 
-6. **Programmatic Flexibility**
+2. **Programmatic Flexibility**
     - Sections, tests, and CLI commands are programmatically extensible
     - Notifications, backup, and automated scripts can be integrated seamlessly
     - Includes utilities for code search, automated server serving, and section wrapping
@@ -91,17 +74,15 @@ php node serve
 1. Clone the repository:
 
     ```bash
-    git clone https://github.com/<your-repo>/NodePHP.git
-    cd NodePHP
+    git clone https://<URL>/Kolostov/NodePHP.git .
+
+    # Move Node files to Git/Node
+    php node git Project
+    git clone https://github.com/<repo>/<project>.git Git/Project
+
+    # Pull Project files to ROOT_PATH
+    php node git Project
     ```
-
-2. Make `node.php` executable (optional):
-
-    ```bash
-    chmod +x node.php
-    ```
-
-3. Ensure the `ROOT_PATH` constant points to your project root in `node.php`
 
 ---
 
@@ -115,19 +96,19 @@ Define your node configuration in the `_node.json` file:
 {
     "name": "Sample",
     "run": "Function\\Helper\\FunctionName",
-    "structure": [
-        "Depricated" => "Files that are considered depricated.",
-        "Log" => [
-            "Internal" => "Application runtime logs",
-            "Access" => "HTTP request logs",
-            "Error" => "Error and exception logs",
-            "Audit" => "Security and audit trails"
-        ],
-        "Git" => [
-            "Node" => "Node.php project repository",
-            "Project" => "All excluding the Node.php"
-        ]
-    ],
+    "structure": {
+        "Depricated": "Files that are considered depricated.",
+        "Log": {
+            "Internal": "Application runtime logs",
+            "Access": "HTTP request logs",
+            "Error": "Error and exception logs",
+            "Audit": "Security and audit trails"
+        },
+        "Git": {
+            "Node": "Node.php project repository",
+            "Project": "All excluding the Node.php"
+        }
+    },
     "require": []
 }
 ```
@@ -177,19 +158,21 @@ Example project structure after `restructure`:
 
 ## CLI Commands Overview
 
-### 1. Restructure
+### 1. Like
 
 ```bash
-php node.php restructure
+php node like <resource name>
 ```
 
-- Deletes empty directories and deploys default project structure
+- Searches the entire codebase for units of resource. Lists available options.
 
 ### 2. Search
 
 ```bash
-php node.php search <query>
+php node search <query>
 ```
+
+- Searches for given keyword within files and lists snippets of matched strings.
 
 - Searches across `.php`, `.js`, `.css`, `.html`, `.json`, `.md`, etc
 - Excludes `vendor`, `Database`, `Logs`, `Backup`, `Deprecated`
@@ -197,17 +180,16 @@ php node.php search <query>
 ### 3. Serve
 
 ```bash
-php node.php serve 8000
+php node serve 8000
 ```
 
-- Starts built-in PHP server at specified port (`8000` default)
-- Alternative: `php node serve` for quick startup
+- Constructs built-in PHP server igntion command at specified port (`8000` default)
 
 ### 4. Test
 
 ```bash
-php node.php test Unit <filter>
-php node.php test internal <filter>
+php node test Unit <filter>
+php node test internal
 ```
 
 - Run Unit, Integration, Contract, or E2E tests
@@ -217,8 +199,8 @@ php node.php test internal <filter>
 ### 5. Wrap
 
 ```bash
-php node.php wrap open
-php node.php wrap close
+php node wrap open
+php node wrap close
 ```
 
 - `open`: splits sections into separate files
@@ -227,14 +209,14 @@ php node.php wrap close
 ### 6. Git Management
 
 ```bash
-php node git <project_name>
+php node git <Project\|Node>
 ```
 
-- Manages git repository links and project structure
+- Manages focus on git repository
 
 ---
 
-## Programmatic Patterns
+## Contributing to NodePHP
 
 ### Wrapping Sections
 
@@ -252,7 +234,7 @@ function helper(): string {
 - Wrap into `node.utilities.php`:
 
 ```bash
-php node.php wrap open
+php node wrap open
 ```
 
 - NodePHP now includes the section via:
@@ -274,7 +256,7 @@ function test_helper(): int {
 - Run:
 
 ```bash
-php node.php test internal helper
+php node test internal helper
 ```
 
 ### Adding New CLI Commands
@@ -283,12 +265,6 @@ php node.php test internal helper
 
 ```php
 function _node_cli_<command>(bool $tooltip = false, array $argv = []): string { ... }
-```
-
-- Add command to `node.php`:
-
-```php
-$cliCommands = ["restructure", "search", "serve", "test", "wrap", "your_new_command"];
 ```
 
 ---
@@ -307,34 +283,6 @@ $cliCommands = ["restructure", "search", "serve", "test", "wrap", "your_new_comm
 - **Programmatic modularity**: CLI + sections + tests form a dynamic, self-documenting codebase
 - **Automation first**: all repetitive tasks should be handled via CLI commands or internal tests
 - **Lightweight and portable**: framework does not require complex dependencies or installation
-
----
-
-## Examples
-
-Start server:
-
-```bash
-php node.php serve 8080
-```
-
-Search for `backup` references:
-
-```bash
-php node.php search backup
-```
-
-Run all internal tests:
-
-```bash
-php node.php test internal
-```
-
-Wrap node.php sections:
-
-```bash
-php node.php wrap open
-```
 
 ---
 
