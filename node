@@ -1,1 +1,23 @@
-node.php
+#!/bin/bash
+
+echo "NodePHP Interactive Shell (type 'exit' to quit)"
+# This creates an infinite loop
+while true; do
+    # Display a custom prompt
+    read -p "NodePHP> " input
+
+    # Handle exit command
+    if [[ "$input" == "exit" || "$input" == "quit" ]]; then
+        break
+    fi
+
+    # Skip empty input
+    if [[ -z "$input" ]]; then
+        continue
+    fi
+
+    # Execute: php node [whatever you typed]
+    clear
+    php node.php $input
+
+done
