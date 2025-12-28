@@ -4004,15 +4004,21 @@ if ($LOCAL_PATH === ROOT_PATH) {
                         } else {
                             // Regular resource creation
                             $fc = _node_generate_boilerplate($c[1], $name, ROOT_PATH);
-                            $fn = str_starts_with($name, strtolower($fc[1]) . "_")
-                                ? $c[1] . D . "{$name}.php"
-                                : $c[1] . D . "{$name}{$fc[1]}.php";
+                            $fn = str_starts_with($name, strtolower($fc[1]) . "_") ? $name : "{$name}{$fc[1]}";
+
+                            $fp = $c[1] . D . "{$fn}.php";
 
                             if (!file_exists($fn)) {
-                                $size = file_put_contents($fn, $fc[0]);
-                                return "File created at {$fn} size {$size} bytes.\n";
+                                # Create documentation for that file
+                                $dp = ROOT_PATH . "Docs" . D . "{$fn}.md";
+                                if (f($dp, "write", "# {$fn}\n\n")) {
+                                    # Create actual file.
+                                    $size = f($fp, "write", $fc[0]);
+                                    return "File created at {$fp} size {$size} bytes.\n";
+                                }
+                                return "E: Could not prepare Docs at {$dp} for new file.";
                             } else {
-                                return "E: File {$fn} already exists.\n";
+                                return "E: File {$fp} already exists.\n";
                             }
                         }
                     }
