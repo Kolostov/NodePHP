@@ -1,4 +1,4 @@
-# Final/Creational Class Patterns (Node.php Framework)
+# Final/Creational Class Patterns
 
 ## Overview: Immutable Object Construction Systems
 

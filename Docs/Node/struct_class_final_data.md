@@ -1,4 +1,4 @@
-# Final/Data Class Patterns (Node.php Framework)
+# Final/Data Class Patterns
 
 ## Overview: Structured Data Carriers & Specifications
 
