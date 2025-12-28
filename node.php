@@ -797,9 +797,9 @@ if (!function_exists("f")) {
      *
      * IMPORTANT! Every $action must return $this; object.
      *
-     * @return bool|array Operation success status or resulted state array.
+     * @return mixed Operation success status or resulted state array.
      */
-    function p(int|string|null $phase = null, object|string|null $action = null): bool|array
+    function p(int|string|null $phase = null, object|string|null $action = null): mixed
     {
         # Active record Declarations.
         static $phases = [],
@@ -813,13 +813,27 @@ if (!function_exists("f")) {
         static $order = ["boot", "discover", "transpilate", "resolve", "execute", "mutate", "persist", "finalize"];
 
         # List all available phases in order of execution.
-        if ($phase === "order") {
+        if ($phase === ":order") {
             return $order;
         }
 
+        if ($phase === ":index" || $phase === ":cursor") {
+            return $cursor;
+        }
+
+        if ($phase === ":name") {
+            return $order[$cursor] ?? "phaseless";
+        }
+
         # Dump phase orchestrator.
-        if ($phase === "dump") {
-            return ["phases" => $phases, "state" => $state, "backups" => $backups, "cursor" => $cursor];
+        if ($phase === ":dump") {
+            return [
+                "phases" => $phases,
+                "state" => $state,
+                "backups" => $backups,
+                "cursor" => $cursor,
+                "name" => $order[$cursor] ?? "phaseless",
+            ];
         }
 
         # Try to target evolution to given phase.
@@ -5942,7 +5956,7 @@ if ($LOCAL_PATH === ROOT_PATH) {
         # Set default phase indicator
         $NODE_PHASE = "phaseless";
 
-        if (isset($argv[1]) && in_array($argv[1], p("order"))) {
+        if (isset($argv[1]) && in_array($argv[1], p(":order"))) {
             $argv = array_slice($argv, 1);
             $NODE_PHASE = $argv[0];
 
