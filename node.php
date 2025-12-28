@@ -713,7 +713,7 @@ if (!function_exists("f")) {
             return $real_path;
         }
 
-        $old_content = file_exists($real_path) ? file_get_contents($real_path) : null;
+        $old_content = !is_dir($real_path) ? (file_exists($real_path) ? file_get_contents($real_path) : null) : null;
 
         # Base parameters of this file action.
         # this is to be added to depending on given action for future possible rollback.
